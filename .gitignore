@@ -20,3 +20,4 @@ docs/.next/
 dist/
 coverage/
 *.log
+result

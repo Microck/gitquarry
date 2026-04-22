@@ -58,9 +58,12 @@ git push origin vX.Y.Z
 - runs format, clippy, tests, and package checks
 - publishes the crate to crates.io when `CARGO_REGISTRY_TOKEN` is configured
 - builds release artifacts for:
-  - Linux
-  - macOS
-  - Windows
+  - `x86_64-unknown-linux-gnu`
+  - `aarch64-unknown-linux-gnu`
+  - `x86_64-apple-darwin`
+  - `aarch64-apple-darwin`
+  - `x86_64-pc-windows-msvc`
+- creates a source tarball for packaging workflows
 - generates `SHA256SUMS`
 - creates the GitHub release and uploads the packaged artifacts
 
@@ -70,7 +73,7 @@ Verify all public release surfaces after the workflows finish:
 
 1. GitHub Release
    - `gh release view vX.Y.Z -R Microck/gitquarry`
-   - confirm the release includes the platform archives plus `SHA256SUMS`
+   - confirm the release includes the per-target archives, the source tarball, and `SHA256SUMS`
 2. Release workflow health
    - `gh run list --workflow Release -R Microck/gitquarry --limit 5`
 3. crates.io

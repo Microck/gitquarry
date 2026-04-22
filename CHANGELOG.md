@@ -6,6 +6,11 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+## [0.1.2]
+
+- Add package-manager-friendly release assets with explicit target triples and a source tarball
+- Add repo-native Nix packaging and prepare the repository for broader distribution channels
+
 ## [0.1.1]
 
 - Fix the tagged release workflow so release notes generation can read `CHANGELOG.md`

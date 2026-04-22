@@ -89,7 +89,7 @@ jobs:
         run: cargo publish --locked --token "${CARGO_REGISTRY_TOKEN}"
 
   build-release:
-    name: Build release (${{ matrix.label }})
+    name: Build release (${{ matrix.target }})
     needs: verify-release
     runs-on: ${{ matrix.os }}
     strategy:
@@ -97,15 +97,24 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            label: linux
+            target: x86_64-unknown-linux-gnu
+            binary: gitquarry
+            archive: tar.gz
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            binary: gitquarry
+            archive: tar.gz
+            linker: aarch64-linux-gnu-gcc
+          - os: macos-13
+            target: x86_64-apple-darwin
             binary: gitquarry
             archive: tar.gz
           - os: macos-latest
-            label: macos
+            target: aarch64-apple-darwin
             binary: gitquarry
             archive: tar.gz
           - os: windows-latest
-            label: windows
+            target: x86_64-pc-windows-msvc
             binary: gitquarry.exe
             archive: zip
     steps:
@@ -114,33 +123,51 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
 
+      - name: Install Linux cross toolchain
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
       - name: Build release binary
-        run: cargo build --locked --release
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.linker || '' }}
+        run: cargo build --locked --release --target ${{ matrix.target }}
+
+      - name: Compute asset name
+        id: asset
+        shell: bash
+        run: echo "name=gitquarry-${GITHUB_REF_NAME}-${{ matrix.target }}.${{ matrix.archive }}" >> "$GITHUB_OUTPUT"
 
       - name: Package artifact (Unix)
         if: runner.os != 'Windows'
         run: |
           mkdir -p dist
-          cp target/release/${{ matrix.binary }} dist/
-          tar -C dist -czf gitquarry-${{ matrix.label }}.tar.gz ${{ matrix.binary }}
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} dist/gitquarry
+          cp README.md LICENSE dist/
+          tar -C dist -czf "${{ steps.asset.outputs.name }}" .
 
       - name: Package artifact (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item "target/release/${{ matrix.binary }}" "dist/${{ matrix.binary }}"
-          Compress-Archive -Path "dist/${{ matrix.binary }}" -DestinationPath "gitquarry-${{ matrix.label }}.zip" -Force
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.binary }}" "dist/gitquarry.exe"
+          Copy-Item "README.md" "dist/README.md"
+          Copy-Item "LICENSE" "dist/LICENSE"
+          Compress-Archive -Path "dist/*" -DestinationPath "${{ steps.asset.outputs.name }}" -Force
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: gitquarry-${{ matrix.label }}
-          path: gitquarry-${{ matrix.label }}.${{ matrix.archive }}
+          name: ${{ matrix.target }}
+          path: ${{ steps.asset.outputs.name }}
 
   publish-release:
     name: Publish release
@@ -159,9 +186,7 @@ jobs:
       - name: Flatten artifacts
         run: |
           mkdir -p release
-          find release-artifacts -type f -maxdepth 2 -exec cp {} release/ \;
-          cd release
-          sha256sum * > SHA256SUMS
+          find release-artifacts -maxdepth 2 -type f -exec cp {} release/ \;
 
       - name: Generate release notes
         env:
@@ -188,6 +213,15 @@ jobs:
             echo "Failed to extract release notes for ${VERSION} or the Unreleased section from CHANGELOG.md" >&2
             exit 1
           fi
+
+      - name: Create source tarball and checksums
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git archive --format=tar.gz --output "release/gitquarry-${VERSION}-source.tar.gz" "${VERSION}"
+          cd release
+          sha256sum * > SHA256SUMS
 
       - name: Upload release bundle
         uses: actions/upload-artifact@v7.0.1

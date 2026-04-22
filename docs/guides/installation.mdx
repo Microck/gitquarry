@@ -15,9 +15,11 @@ Tagged releases publish platform archives on GitHub Releases:
 
 Pick the archive that matches your platform:
 
-- `gitquarry-linux.tar.gz`
-- `gitquarry-macos.tar.gz`
-- `gitquarry-windows.zip`
+- `gitquarry-vX.Y.Z-x86_64-unknown-linux-gnu.tar.gz`
+- `gitquarry-vX.Y.Z-aarch64-unknown-linux-gnu.tar.gz`
+- `gitquarry-vX.Y.Z-x86_64-apple-darwin.tar.gz`
+- `gitquarry-vX.Y.Z-aarch64-apple-darwin.tar.gz`
+- `gitquarry-vX.Y.Z-x86_64-pc-windows-msvc.zip`
 
 ## Install From crates.io
 
@@ -40,6 +42,12 @@ If you do not want to install it globally yet:
 cargo run -- search "rust cli"
 ```
 
+## Install With Nix
+
+```bash
+nix run github:Microck/gitquarry
+```
+
 ## Requirements
 
 - Rust toolchain
@@ -48,7 +56,7 @@ cargo run -- search "rust cli"
 
 ## Release and Publish Flow
 
-Tagged releases verify the package, attach platform archives to the GitHub release, and publish the crate when the registry token is configured.
+Tagged releases verify the package, attach per-target platform archives plus a source tarball to the GitHub release, and publish the crate when the registry token is configured.
 
 ## Verify
 

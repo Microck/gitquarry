@@ -38,9 +38,11 @@ if you already use GitHub repository search and want a CLI that stays honest abo
 the public install path right now is GitHub Releases:
 
 - [releases page](https://github.com/Microck/gitquarry/releases)
-- `gitquarry-linux.tar.gz`
-- `gitquarry-macos.tar.gz`
-- `gitquarry-windows.zip`
+- `gitquarry-vX.Y.Z-x86_64-unknown-linux-gnu.tar.gz`
+- `gitquarry-vX.Y.Z-aarch64-unknown-linux-gnu.tar.gz`
+- `gitquarry-vX.Y.Z-x86_64-apple-darwin.tar.gz`
+- `gitquarry-vX.Y.Z-aarch64-apple-darwin.tar.gz`
+- `gitquarry-vX.Y.Z-x86_64-pc-windows-msvc.zip`
 
 if you want to install from a local checkout instead:
 
@@ -52,6 +54,12 @@ if you just want to run it from source:
 
 ```bash
 cargo run -- search "rust cli"
+```
+
+nix users can run it directly from the repository:
+
+```bash
+nix run github:Microck/gitquarry
 ```
 
 ## auth
