@@ -35,7 +35,21 @@ if you already use GitHub repository search and want a CLI that stays honest abo
 
 ## install
 
-the public install path right now is GitHub Releases:
+homebrew:
+
+```bash
+brew tap Microck/gitquarry
+brew install gitquarry
+```
+
+scoop:
+
+```powershell
+scoop bucket add gitquarry https://github.com/Microck/scoop-gitquarry
+scoop install gitquarry
+```
+
+github releases:
 
 - [releases page](https://github.com/Microck/gitquarry/releases)
 - `gitquarry-vX.Y.Z-x86_64-unknown-linux-gnu.tar.gz`
@@ -43,6 +57,14 @@ the public install path right now is GitHub Releases:
 - `gitquarry-vX.Y.Z-x86_64-apple-darwin.tar.gz`
 - `gitquarry-vX.Y.Z-aarch64-apple-darwin.tar.gz`
 - `gitquarry-vX.Y.Z-x86_64-pc-windows-msvc.zip`
+
+nix:
+
+```bash
+nix run github:Microck/gitquarry
+```
+
+arch packaging files are tracked in [`packaging/aur/`](./packaging/aur) for AUR submission or local `makepkg` flows. there is not a published AUR package yet.
 
 if you want to install from a local checkout instead:
 
@@ -54,12 +76,6 @@ if you just want to run it from source:
 
 ```bash
 cargo run -- search "rust cli"
-```
-
-nix users can run it directly from the repository:
-
-```bash
-nix run github:Microck/gitquarry
 ```
 
 ## auth

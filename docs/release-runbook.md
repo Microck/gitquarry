@@ -4,7 +4,7 @@ Use this when cutting a new `gitquarry` release.
 
 ## Goal
 
-Ship one version across GitHub release assets, public documentation, and crates.io when registry credentials are configured.
+Ship one version across GitHub release assets, downstream packaging repos, public documentation, and crates.io when registry credentials are configured.
 
 ## Preflight
 
@@ -15,6 +15,9 @@ Ship one version across GitHub release assets, public documentation, and crates.
    - `CARGO_REGISTRY_TOKEN` GitHub Actions secret for crates.io publishing
    - `GITQUARRY_TOKEN` GitHub Actions secret for live smoke checks
 5. Confirm `CHANGELOG.md` includes the user-facing notes for the release.
+6. Be ready to update downstream packaging repos after the GitHub release completes:
+   - `Microck/homebrew-gitquarry`
+   - `Microck/scoop-gitquarry`
 
 ## Update release metadata
 
@@ -76,10 +79,27 @@ Verify all public release surfaces after the workflows finish:
    - confirm the release includes the per-target archives, the source tarball, and `SHA256SUMS`
 2. Release workflow health
    - `gh run list --workflow Release -R Microck/gitquarry --limit 5`
-3. crates.io
+3. Downstream packaging repos
+   - update `Microck/homebrew-gitquarry/Formula/gitquarry.rb` to the new version and hashes
+   - update `Microck/scoop-gitquarry/bucket/gitquarry.json` to the new version and Windows hash
+   - push both repos and verify the install commands still work conceptually:
+
+```bash
+brew tap Microck/gitquarry
+brew install gitquarry
+
+scoop bucket add gitquarry https://github.com/Microck/scoop-gitquarry
+scoop install gitquarry
+```
+
+4. Repo-native packaging files
+   - update `packaging/homebrew/gitquarry.rb`
+   - update `packaging/scoop/gitquarry.json`
+   - update `packaging/aur/PKGBUILD` and `packaging/aur/.SRCINFO`
+5. crates.io
    - `cargo search gitquarry --limit 1`
    - confirm the published version matches `X.Y.Z` when `CARGO_REGISTRY_TOKEN` was configured for the release
-4. Docs
+6. Docs
    - confirm Mintlify is still pointing at the expected branch and that install instructions still match the published release
 
 ## Release channel notes
@@ -87,6 +107,18 @@ Verify all public release surfaces after the workflows finish:
 ### GitHub Releases
 
 This is the canonical binary distribution channel for platform archives.
+
+### Homebrew
+
+This lives in `Microck/homebrew-gitquarry` and should always track the latest published GitHub release hashes for macOS and Linux.
+
+### Scoop
+
+This lives in `Microck/scoop-gitquarry` and should always track the latest published Windows release asset and hash.
+
+### Repo-native packaging files
+
+The main repo also carries release-aligned packaging files under `packaging/` for Homebrew, Scoop, and AUR workflows. They should be kept in sync with the public release even if an external registry has not been updated yet.
 
 ### crates.io
 
@@ -129,8 +161,16 @@ cargo publish --locked
 2. Replace the GitHub release assets.
 3. Do not republish the crate with the same version.
 
+### GitHub release is good but downstream package repos drifted
+
+1. Download `SHA256SUMS` from the GitHub release.
+2. Update `Microck/homebrew-gitquarry` and `Microck/scoop-gitquarry` to the matching version and hashes.
+3. Update the repo-native files under `packaging/`.
+4. Verify docs still point at live channels only.
+
 ## Quick checks
 
 - `gh release view vX.Y.Z -R Microck/gitquarry`
 - `gh run list --workflow Release -R Microck/gitquarry --limit 5`
+- `gh release download vX.Y.Z -R Microck/gitquarry -p SHA256SUMS`
 - `cargo search gitquarry --limit 1`

@@ -1,11 +1,25 @@
 ---
 title: "Installation"
-description: "Install gitquarry from GitHub Releases, from crates.io when published, or from source."
+description: "Install gitquarry from Homebrew, Scoop, GitHub Releases, Nix, or source."
 ---
 
 # Installation
 
-Gitquarry is distributed through tagged GitHub release binaries and, when the registry token is configured, through crates.io.
+Gitquarry is distributed through tagged GitHub release binaries, a Homebrew tap, a Scoop bucket, and the repository's Nix flake. AUR packaging files are tracked in-repo, but there is not a published AUR package yet.
+
+## Install With Homebrew
+
+```bash
+brew tap Microck/gitquarry
+brew install gitquarry
+```
+
+## Install With Scoop
+
+```powershell
+scoop bucket add gitquarry https://github.com/Microck/scoop-gitquarry
+scoop install gitquarry
+```
 
 ## Install From GitHub Releases
 
@@ -21,15 +35,17 @@ Pick the archive that matches your platform:
 - `gitquarry-vX.Y.Z-aarch64-apple-darwin.tar.gz`
 - `gitquarry-vX.Y.Z-x86_64-pc-windows-msvc.zip`
 
-## Install From crates.io
+## Install With Nix
 
 ```bash
-cargo install gitquarry
+nix run github:Microck/gitquarry
 ```
 
-This path becomes available once the release workflow has a configured `CARGO_REGISTRY_TOKEN`.
+## Arch And AUR Packaging
 
-## Install From a Checkout
+The tracked Arch packaging files live under [`packaging/aur/`](../../packaging/aur). They are ready for local `makepkg` use or future AUR publication, but there is not yet a public AUR package name to install from directly.
+
+## Install From A Checkout
 
 ```bash
 # from a local clone of this repository
@@ -42,12 +58,6 @@ If you do not want to install it globally yet:
 cargo run -- search "rust cli"
 ```
 
-## Install With Nix
-
-```bash
-nix run github:Microck/gitquarry
-```
-
 ## Requirements
 
 - Rust toolchain
@@ -56,7 +66,7 @@ nix run github:Microck/gitquarry
 
 ## Release and Publish Flow
 
-Tagged releases verify the package, attach per-target platform archives plus a source tarball to the GitHub release, and publish the crate when the registry token is configured.
+Tagged releases verify the package, attach per-target platform archives plus a source tarball to the GitHub release, and provide the versioned artifacts the downstream Homebrew and Scoop packaging repos should track.
 
 ## Verify
 
