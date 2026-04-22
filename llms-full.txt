@@ -1,0 +1,98 @@
+# gitquarry
+
+> Rust CLI for public GitHub repository search that preserves native GitHub-style search by default and makes broader discovery, reranking, README enrichment, and explainability explicit.
+
+## Key Facts
+
+- Product type: terminal-first CLI for public GitHub repository search
+- Primary language: Rust
+- Canonical docs: https://gitquarry.micr.dev/
+- Source repo: https://github.com/Microck/gitquarry
+- Main commands: `search`, `inspect`, `auth`, `config`, `version`
+- Install surfaces: npm, Homebrew, Scoop, AUR, GitHub Releases, Nix, source build
+- Auth model: PAT-only in v1, host-scoped, secure storage first, explicit insecure fallback only
+- Output contract: `pretty`, `json`, `compact`, `csv`; progress on `stderr`; errors are symbolic plain text
+- Core product rule: plain search must stay close to native GitHub repository search unless the user explicitly opts into discover behavior
+
+## Guides
+
+- [Introduction](https://gitquarry.micr.dev/): Overview of the product, command surface, and the native-vs-discover contract.
+- [Installation](https://gitquarry.micr.dev/guides/installation): Full install matrix, verification steps, and local docs preview notes.
+- [Quickstart](https://gitquarry.micr.dev/guides/quickstart): First-auth to first-search flow with native search, inspect, discover mode, and structured output.
+- [Authentication](https://gitquarry.micr.dev/guides/authentication): PAT requirements, secure storage, env precedence, insecure fallback, host-scoped behavior, and logout semantics.
+- [Discovery Mode](https://gitquarry.micr.dev/guides/discovery-mode): When discover mode is appropriate, how depth works, and how rank, README, explain, and concurrency interact.
+- [GitHub Enterprise Hosts](https://gitquarry.micr.dev/guides/github-enterprise-hosts): Host normalization rules, enterprise examples, and per-host credential behavior.
+- [Output And Scripting](https://gitquarry.micr.dev/guides/output-and-scripting): JSON, compact JSON, CSV, progress behavior, CI usage, and scripting-safe patterns.
+- [Shell Completion](https://gitquarry.micr.dev/guides/shell-completion): Completion generation and install examples for Bash, Zsh, Fish, and PowerShell.
+- [Search Recipes](https://gitquarry.micr.dev/guides/search-recipes): Copy-paste patterns for native search, discover mode, ranking weights, host selection, and structured exports.
+- [Troubleshooting](https://gitquarry.micr.dev/guides/troubleshooting): Quick symptom-first fixes for auth, host, query, and flag problems.
+
+## Commands
+
+- [search](https://gitquarry.micr.dev/commands/search): Search public repositories. Supports native mode by default and explicit discover mode with alternative rank strategies.
+- [inspect](https://gitquarry.micr.dev/commands/inspect): Inspect a single explicit `owner/repo`. Optional README inclusion. Metadata-first by default.
+- [auth](https://gitquarry.micr.dev/commands/auth): Manage host-scoped personal access tokens through `login`, `status`, and `logout`.
+- [config](https://gitquarry.micr.dev/commands/config): Print the effective config path and the effective config payload.
+
+## Reference
+
+- [CLI Overview](https://gitquarry.micr.dev/reference/cli-overview): Root commands, global flags, completion generation, and version support.
+- [Config And Credentials](https://gitquarry.micr.dev/reference/config-and-credentials): `GITQUARRY_CONFIG_DIR`, config schema, intentionally unsaved defaults, auth precedence, and fallback rules.
+- [Engine Internals](https://gitquarry.micr.dev/reference/engine-internals): Native search path, discover path, candidate-pool targets, scoring, retries, and contributor-count tolerance.
+- [Output Contract](https://gitquarry.micr.dev/reference/output-contract): Structured output guarantee and stderr-only progress.
+- [Output Schemas](https://gitquarry.micr.dev/reference/output-schemas): Exact top-level JSON shapes, repository fields, explain object fields, and CSV header.
+- [Error Reference](https://gitquarry.micr.dev/reference/error-reference): `E_AUTH_REQUIRED`, `E_AUTH_INVALID`, `E_AUTH_STORAGE`, `E_FLAG_PARSE`, `E_FLAG_CONFLICT`, `E_FLAG_REQUIRES_MODE`, `E_QUERY_REQUIRED`, `E_GITHUB_API`, `E_HTTP`, `E_CONFIG_PATH`, `E_CONFIG_IO`, `E_CONFIG_PARSE`, `E_HOST_INVALID`, `E_NOT_FOUND`, `E_OUTPUT`, and `E_STORAGE`.
+- [Search Behavior](https://gitquarry.micr.dev/reference/search-behavior): Contract-level explanation of native vs discover, rank semantics, bounded discovery, and host handling.
+
+## Project Docs
+
+- [Architecture And Spec](https://gitquarry.micr.dev/project/architecture-and-spec): Mintlify summary of the two top-level contract files.
+- [Development](https://gitquarry.micr.dev/project/development): Build, test, CLI-help smoke, docs preview, and workflow overview.
+- [Testing And Release](https://gitquarry.micr.dev/project/testing-and-release): Local verification, CI matrix, live smoke, and release workflow roles.
+- [Packaging And Release](https://gitquarry.micr.dev/project/packaging-and-release): How release surfaces relate and what GitHub Releases remain canonical for.
+- [Security And Auth Safety](https://gitquarry.micr.dev/project/security-and-auth-safety): Secure storage defaults, insecure fallback boundaries, and safe local verification.
+- [Contributing](https://gitquarry.micr.dev/project/contributing): Behavior-change workflow and docs-sync expectations.
+- [Release Runbook](https://gitquarry.micr.dev/release-runbook): Maintainer checklist for tagging, publishing, syncing package surfaces, and recovery.
+
+## Wiki
+
+- [Native Vs Discover](https://gitquarry.micr.dev/wiki/native-vs-discover): Quick decision guide for the two search modes.
+- [Automation Patterns](https://gitquarry.micr.dev/wiki/automation-patterns): Pipelines, CI, ephemeral config, enterprise env vars, and compact JSON patterns.
+- [Repository Signals](https://gitquarry.micr.dev/wiki/repository-signals): What query, activity, and quality signals use from repository metadata.
+- [FAQ](https://gitquarry.micr.dev/wiki/faq): Repeated operator questions and short answers.
+- [Troubleshooting Playbook](https://gitquarry.micr.dev/wiki/troubleshooting-playbook): Longer operational guide for diagnosing auth, host, output, and release-surface issues.
+
+## Release Channels
+
+- [GitHub Releases](https://github.com/Microck/gitquarry/releases): Canonical source for archives, raw binaries, source tarball, checksums, and release notes.
+- [npm package](https://www.npmjs.com/package/gitquarry): Thin Node wrapper that downloads the matching raw binary from GitHub Releases. Also powers `pnpm` and `bun` consumption.
+- [Homebrew tap](https://github.com/Microck/homebrew-gitquarry): Public formula repo for macOS and Linux.
+- [Scoop bucket](https://github.com/Microck/scoop-gitquarry): Public Windows bucket.
+- [AUR package](https://aur.archlinux.org/packages/gitquarry): Arch Linux package built from the GitHub release source tarball.
+- [Nix flake](https://github.com/Microck/gitquarry/blob/main/flake.nix): Repo-native Nix entry point, not a claim of `nixpkgs` inclusion.
+
+## Source Of Truth Files
+
+- [README](https://github.com/Microck/gitquarry/blob/main/README.md): Human-facing repository overview and installation summary.
+- [SPEC.md](https://github.com/Microck/gitquarry/blob/main/SPEC.md): Product contract, command surface, validation policy, ranking, output, and error requirements.
+- [ARCHITECTURE.md](https://github.com/Microck/gitquarry/blob/main/ARCHITECTURE.md): Request pipeline, subsystem layout, storage model, scoring model, progress, host handling, and output contract.
+- [CHANGELOG.md](https://github.com/Microck/gitquarry/blob/main/CHANGELOG.md): User-facing release notes.
+- [CONTRIBUTING.md](https://github.com/Microck/gitquarry/blob/main/CONTRIBUTING.md): Contribution entry point.
+- [SECURITY.md](https://github.com/Microck/gitquarry/blob/main/SECURITY.md): Security contact and policy surface.
+- [LICENSE](https://github.com/Microck/gitquarry/blob/main/LICENSE): MIT license.
+
+## Implementation Map
+
+- [src/app.rs](https://github.com/Microck/gitquarry/blob/main/src/app.rs): Command orchestration, pipeline phases, README window handling, and render dispatch.
+- [src/query.rs](https://github.com/Microck/gitquarry/blob/main/src/query.rs): Query compilation, flag conflicts, discover planning, and empty-query rules.
+- [src/github.rs](https://github.com/Microck/gitquarry/blob/main/src/github.rs): HTTP client, API headers, retries, README and release fetches, contributor-count logic.
+- [src/credential.rs](https://github.com/Microck/gitquarry/blob/main/src/credential.rs): Secure storage, insecure fallback, token resolution, and logout behavior.
+- [src/host.rs](https://github.com/Microck/gitquarry/blob/main/src/host.rs): Host normalization and host-specific env-var derivation.
+- [src/output.rs](https://github.com/Microck/gitquarry/blob/main/src/output.rs): Pretty output, JSON and CSV serialization, and stdout/stderr separation.
+- [tests/cli-smoke.rs](https://github.com/Microck/gitquarry/blob/main/tests/cli-smoke.rs): End-to-end contract tests with fixture-backed HTTP flows.
+
+## Optional
+
+- [packaging/](https://github.com/Microck/gitquarry/tree/main/packaging): Repo-local packaging mirrors for Homebrew, Scoop, and AUR. Useful, but secondary to the live package channels.
+- [npm/](https://github.com/Microck/gitquarry/tree/main/npm): npm wrapper implementation and package metadata.
+- [issue templates](https://github.com/Microck/gitquarry/tree/main/.github/ISSUE_TEMPLATE): Entry points for bug reports and feature requests.

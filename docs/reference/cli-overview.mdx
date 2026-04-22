@@ -1,0 +1,69 @@
+---
+title: "CLI Overview"
+description: "See the full gitquarry command surface, global options, root commands, and completion support in one place."
+---
+
+# CLI Overview
+
+Gitquarry has a deliberately small root command surface.
+
+## Root Commands
+
+```bash
+gitquarry search [OPTIONS] [QUERY]
+gitquarry inspect [OPTIONS] <OWNER/REPO>
+gitquarry auth login|status|logout
+gitquarry config path|show
+gitquarry version
+```
+
+## Global Options
+
+```bash
+--host <HOST>
+--generate-completion <bash|zsh|fish|powershell>
+--help
+--version
+```
+
+### `--host`
+
+Targets GitHub.com or a custom host.
+
+Accepted inputs:
+
+- bare hostname
+- full URL
+- explicit `/api/v3` base
+
+See [GitHub Enterprise Hosts](/guides/github-enterprise-hosts).
+
+### `--generate-completion`
+
+Prints shell completion to `stdout`.
+
+Supported values:
+
+- `bash`
+- `zsh`
+- `fish`
+- `powershell`
+
+## Subcommand Roles
+
+| Command | Role |
+| --- | --- |
+| `search` | repository discovery and ranking |
+| `inspect` | explicit `owner/repo` inspection |
+| `auth` | host-scoped PAT management |
+| `config` | inspect effective config path and payload |
+| `version` | print the current version |
+
+## Product Contract
+
+The most important root-level rule is:
+
+- plain `search` stays close to native GitHub repository search
+- enhanced discovery stays explicit
+
+That contract is defined in [Search Behavior](/reference/search-behavior) and the repo spec.

@@ -1,0 +1,86 @@
+---
+title: "Troubleshooting Playbook"
+description: "A longer operator-focused playbook for debugging auth, search, output, host, and release-surface issues."
+---
+
+# Troubleshooting Playbook
+
+This is the longer operational companion to the shorter [Troubleshooting](/guides/troubleshooting) guide.
+
+## Auth Problems
+
+### Symptom
+
+`search` or `inspect` returns `E_AUTH_REQUIRED`.
+
+### Checks
+
+1. Run `gitquarry auth status`
+2. Check for `GITQUARRY_TOKEN_<HOST>` or `GITQUARRY_TOKEN`
+3. Confirm `--host` is what you think it is
+4. Re-run `auth login`
+
+## Search Validation Problems
+
+### Symptom
+
+Immediate failure before any network work.
+
+### Likely Cause
+
+That is usually intentional. Gitquarry validates before auth/network when possible.
+
+Examples:
+
+- empty native query
+- rank without discover
+- malformed `owner/repo`
+- raw qualifier plus overlapping structured flag
+
+## Output Problems
+
+### Symptom
+
+Your script cannot parse the output.
+
+### Fix
+
+- switch to `--format json` or `--format compact`
+- set `--progress off` if you want a fully silent `stderr`
+- never parse `pretty`
+
+## Host Problems
+
+### Symptom
+
+The wrong credentials appear to be used.
+
+### Fix
+
+Remember that auth is keyed to the normalized host.
+
+Check:
+
+```bash
+gitquarry --host github.com auth status
+gitquarry --host https://ghe.example.com auth status
+```
+
+Those are separate auth contexts.
+
+## Release-Surface Problems
+
+### Symptom
+
+One packaging surface is behind the GitHub release.
+
+### Fix
+
+Use the release runbook and sync:
+
+- GitHub Release
+- npm
+- Homebrew tap
+- Scoop bucket
+- AUR
+- repo-local packaging mirrors

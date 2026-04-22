@@ -69,6 +69,36 @@ GitHub returned a non-success API response that gitquarry could not treat as a n
 
 Transport, request, or decode failure.
 
+### `E_CONFIG_PATH`
+
+Gitquarry could not determine the user config directory.
+
+### `E_CONFIG_IO`
+
+Config or config-directory I/O failed.
+
+### `E_CONFIG_PARSE`
+
+`config.toml` existed but could not be parsed.
+
+### `E_HOST_INVALID`
+
+The `--host` value was empty or malformed.
+
+### `E_NOT_FOUND`
+
+An optional GitHub resource was not found.
+
+This is often handled internally for README or latest-release fetches, but can still surface in some flows.
+
+### `E_OUTPUT`
+
+Stdout, stderr, JSON, CSV, or help rendering failed.
+
+### `E_STORAGE`
+
+Local credential-file read or write failed outside the secure-storage happy path.
+
 ## Operational Notes
 
 Gitquarry intentionally stops at the first clear error. It does not emit a batch of speculative fixes.

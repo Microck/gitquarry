@@ -1,0 +1,64 @@
+---
+title: "Repository Signals"
+description: "Understand which repository fields matter in native search, inspect output, and explicit ranking modes."
+---
+
+# Repository Signals
+
+Gitquarry only uses explicit, explainable repository facts.
+
+## Query Signals
+
+Query ranking uses literal matching across:
+
+- repository name
+- description
+- topics
+- README when `--readme` is enabled
+
+There is no synonym expansion in v1.
+
+## Activity Signals
+
+Activity uses:
+
+- `pushed_at`
+- `updated_at`
+- latest release recency
+- archived penalty
+
+If you care about freshness, `--rank activity` is the right choice.
+
+## Quality Signals
+
+Quality uses:
+
+- stars
+- forks
+- contributor count when available
+- license presence
+- README presence
+- template status
+
+There are no issue-based or trending signals in v1.
+
+## Non-Fatal Signals
+
+Contributor count can be missing on very large repositories.
+
+That does not fail the command. Gitquarry treats it as an unavailable optional signal.
+
+## Inspect Output
+
+`inspect` reports the raw repository signals directly:
+
+- stars
+- forks
+- language
+- topics
+- license
+- created / updated / pushed timestamps
+- archived / template / fork flags
+- open issue count
+- latest release when available
+- contributor count when available

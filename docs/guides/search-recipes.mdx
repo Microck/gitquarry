@@ -1,0 +1,92 @@
+---
+title: "Search Recipes"
+description: "Copy-paste search patterns for native GitHub-like search, discover mode, structured filters, and scripting."
+---
+
+# Search Recipes
+
+These are practical starting points for common search jobs.
+
+## Plain Native Search
+
+```bash
+gitquarry search "rust cli"
+gitquarry search "vector database"
+```
+
+This keeps search behavior close to native GitHub repository search.
+
+## Native Search With Structured Filters
+
+```bash
+gitquarry search "vector database" --language rust --sort stars
+gitquarry search "release automation" --topic cli --updated-within 30d
+gitquarry search "sdk" --org vercel --min-stars 100
+```
+
+## Discover Mode For Better Coverage
+
+```bash
+gitquarry search "release automation" --mode discover
+gitquarry search "graphql client" --mode discover --rank activity
+gitquarry search --mode discover --topic cli --updated-within 30d --limit 5
+```
+
+## README-Aware Discovery
+
+```bash
+gitquarry search "developer portal" \
+  --mode discover \
+  --rank blended \
+  --readme \
+  --explain
+```
+
+Use this when naming and repo metadata are not enough to separate candidates.
+
+## Quality-Oriented Ranking
+
+```bash
+gitquarry search "rust orm" --mode discover --rank quality --limit 10
+```
+
+## Activity-Oriented Ranking
+
+```bash
+gitquarry search "rust lsp" --mode discover --rank activity --updated-within 90d
+```
+
+## Explicit Blended Weights
+
+```bash
+gitquarry search "graphql client" \
+  --mode discover \
+  --rank blended \
+  --weight-query 1.5 \
+  --weight-activity 0.8 \
+  --weight-quality 1.2
+```
+
+## Host-Specific Search
+
+```bash
+gitquarry --host https://ghe.example.com search "internal platform"
+```
+
+## JSON And CSV Recipes
+
+```bash
+gitquarry search "rust cli" --format json
+gitquarry search "rust cli" --format compact
+gitquarry search "rust cli" --format csv
+```
+
+## Conflict Example To Avoid
+
+This fails because the raw query qualifier overlaps a structured flag:
+
+```bash
+gitquarry search "language:rust" --language go
+```
+
+If you want structured filtering, keep the qualifier out of the free-text query.

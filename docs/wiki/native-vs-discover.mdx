@@ -1,0 +1,54 @@
+---
+title: "Native Vs Discover"
+description: "Compare the two search modes side by side and choose the right one for the job."
+---
+
+# Native Vs Discover
+
+Gitquarry has two search personalities on purpose.
+
+## Side-By-Side
+
+| Question | Native | Discover |
+| --- | --- | --- |
+| Default mode | Yes | No |
+| One GitHub search request | Yes | Not necessarily |
+| Native ordering | Yes | Only with `--rank native` |
+| Local reranking | No | Yes |
+| README enrichment | No | Optional |
+| Best for | predictable GitHub-style search | broader retrieval and explicit ranking |
+
+## Use Native When
+
+- you want GitHub-like behavior
+- you care about plain query semantics
+- you want the lightest request path
+- you are scripting around a stable upstream-like result set
+
+Example:
+
+```bash
+gitquarry search "rust cli" --sort stars
+```
+
+## Use Discover When
+
+- one search page is not enough
+- you want ranking by activity or quality
+- README text should influence final ordering
+- you want `--explain`
+
+Example:
+
+```bash
+gitquarry search "release automation" \
+  --mode discover \
+  --rank blended \
+  --readme \
+  --explain
+```
+
+## Mental Shortcut
+
+- native = "GitHub search from the terminal"
+- discover = "broader candidate collection plus explicit local ranking"

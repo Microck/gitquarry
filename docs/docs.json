@@ -46,13 +46,23 @@
               "index",
               "guides/installation",
               "guides/quickstart",
-              "guides/authentication"
+              "guides/authentication",
+              "guides/output-and-scripting"
             ]
           },
           {
             "group": "Search Workflow",
             "pages": [
-              "guides/discovery-mode"
+              "guides/discovery-mode",
+              "guides/search-recipes"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "guides/github-enterprise-hosts",
+              "guides/shell-completion",
+              "guides/troubleshooting"
             ]
           }
         ]
@@ -75,10 +85,19 @@
         "tab": "Reference",
         "groups": [
           {
+            "group": "CLI",
+            "pages": [
+              "reference/cli-overview",
+              "reference/config-and-credentials",
+              "reference/output-schemas"
+            ]
+          },
+          {
             "group": "Contracts",
             "pages": [
               "reference/output-contract",
-              "reference/error-reference"
+              "reference/error-reference",
+              "reference/engine-internals"
             ]
           },
           {
@@ -93,11 +112,40 @@
         "tab": "Project",
         "groups": [
           {
+            "group": "Core Project Docs",
+            "pages": [
+              "project/architecture-and-spec",
+              "project/testing-and-release",
+              "project/packaging-and-release",
+              "project/security-and-auth-safety"
+            ]
+          },
+          {
             "group": "Development",
             "pages": [
               "project/development",
               "project/contributing",
               "release-runbook"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Wiki",
+        "groups": [
+          {
+            "group": "Concepts",
+            "pages": [
+              "wiki/native-vs-discover",
+              "wiki/repository-signals",
+              "wiki/faq"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "wiki/automation-patterns",
+              "wiki/troubleshooting-playbook"
             ]
           }
         ]

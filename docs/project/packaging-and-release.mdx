@@ -1,0 +1,88 @@
+---
+title: "Packaging And Release"
+description: "Understand how GitHub Releases, npm, Homebrew, Scoop, AUR, Nix, and repo-local packaging files fit together."
+---
+
+# Packaging And Release
+
+Gitquarry ships through several surfaces, but GitHub Releases remain the canonical binary source.
+
+## Canonical Release Source
+
+Each tagged release publishes:
+
+- platform archives
+- raw per-target binaries
+- source tarball
+- `SHA256SUMS`
+- release notes
+
+Release page:
+
+- `https://github.com/Microck/gitquarry/releases`
+
+## npm Wrapper
+
+The npm package lives in `npm/`.
+
+It is a thin Node wrapper that:
+
+- installs a small launcher
+- downloads the matching raw binary from GitHub Releases on install
+- enables use through `npm`, `pnpm`, and `bun`
+
+## Homebrew
+
+Public tap:
+
+- `https://github.com/Microck/homebrew-gitquarry`
+
+Repo-local mirror:
+
+- `packaging/homebrew/gitquarry.rb`
+
+## Scoop
+
+Public bucket:
+
+- `https://github.com/Microck/scoop-gitquarry`
+
+Repo-local mirror:
+
+- `packaging/scoop/gitquarry.json`
+
+## AUR
+
+Public package:
+
+- `https://aur.archlinux.org/packages/gitquarry`
+
+Repo-local metadata:
+
+- `packaging/aur/PKGBUILD`
+- `packaging/aur/.SRCINFO`
+
+The AUR package builds from the source tarball, not from a prebuilt binary.
+
+## Nix
+
+Repo-native Nix support lives in:
+
+- `flake.nix`
+- `nix/package.nix`
+
+There is no claim here that `gitquarry` is already in `nixpkgs`.
+
+## Sync Rule
+
+When release metadata changes, these surfaces must stay aligned:
+
+- Cargo version
+- `npm/package.json` version
+- release tag
+- Homebrew formula
+- Scoop manifest
+- AUR metadata
+- repo-local packaging mirrors
+
+See [release-runbook](/release-runbook) for the operational sequence.

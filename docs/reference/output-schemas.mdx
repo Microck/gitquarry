@@ -1,0 +1,132 @@
+---
+title: "Output Schemas"
+description: "See the exact JSON and CSV output shapes used by gitquarry search and inspect."
+---
+
+# Output Schemas
+
+Gitquarry supports `pretty`, `json`, `compact`, and `csv`.
+
+This page documents the structured formats.
+
+## Search JSON Shape
+
+`gitquarry search --format json` serializes this top-level shape:
+
+```json
+{
+  "host": "github.com",
+  "mode": "native",
+  "rank": "native",
+  "query": "rust cli",
+  "compiled_query": "rust cli language:rust",
+  "limit": 10,
+  "total_count": 123,
+  "items": []
+}
+```
+
+Each item uses the repository schema:
+
+```json
+{
+  "name": "gitquarry",
+  "full_name": "Microck/gitquarry",
+  "html_url": "https://github.com/Microck/gitquarry",
+  "description": "A terminal CLI for public GitHub repository search.",
+  "stargazers_count": 123,
+  "forks_count": 7,
+  "language": "Rust",
+  "topics": ["github", "search", "cli"],
+  "license": {
+    "key": "mit",
+    "name": "MIT License",
+    "spdx_id": "MIT"
+  },
+  "created_at": "2026-04-01T00:00:00Z",
+  "updated_at": "2026-04-22T00:00:00Z",
+  "pushed_at": "2026-04-22T00:00:00Z",
+  "archived": false,
+  "is_template": false,
+  "fork": false,
+  "open_issues_count": 0,
+  "owner": {
+    "login": "Microck"
+  },
+  "readme": null,
+  "latest_release": null,
+  "contributor_count": null,
+  "explain": null
+}
+```
+
+## Inspect JSON Shape
+
+`gitquarry inspect --format json` wraps one repository:
+
+```json
+{
+  "host": "github.com",
+  "repository": {
+    "...": "same repository schema as search items"
+  }
+}
+```
+
+## Explain Object
+
+When `--explain` is active in enhanced flows, `repository.explain` can include:
+
+```json
+{
+  "query": 0.82,
+  "activity": 0.61,
+  "quality": 0.74,
+  "blended": 0.73,
+  "weights": {
+    "query": 1.0,
+    "activity": 1.0,
+    "quality": 1.0
+  },
+  "matched_surfaces": ["name", "description", "topics"]
+}
+```
+
+## CSV Columns
+
+CSV output always writes this header:
+
+```text
+full_name,html_url,description,stars,forks,language,topics,license,created_at,updated_at,pushed_at,archived,template,fork,open_issues_count,contributor_count,query_score,activity_score,quality_score,blended_score
+```
+
+Notes:
+
+- `topics` is pipe-delimited inside one CSV field
+- timestamps are RFC3339 in CSV
+- score columns are `0` when no explain data is present
+- `inspect --format csv` writes one row
+
+## Pretty Output
+
+Pretty output is for humans, not strict parsing.
+
+`search --format pretty` prints:
+
+- total count
+- effective mode
+- effective rank
+- host
+- per-repo summary blocks
+
+`inspect --format pretty` prints:
+
+- full name
+- URL
+- description
+- stars, forks, language, topics, license
+- dates
+- archived/template/fork status
+- open issue count
+- latest release when available
+- README block when requested

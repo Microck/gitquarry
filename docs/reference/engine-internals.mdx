@@ -1,0 +1,162 @@
+---
+title: "Engine Internals"
+description: "Understand native search, discover-mode expansion, scoring, retries, and bounded enrichment."
+---
+
+# Engine Internals
+
+This page explains how gitquarry executes requests under the hood.
+
+## Native Search Path
+
+Native search is the default path.
+
+Pipeline:
+
+1. resolve host
+2. resolve credential
+3. parse query and flags
+4. validate conflicts
+5. build one GitHub repository-search request
+6. fetch one result set
+7. apply post-filters like `updated-*`
+8. render output
+
+Properties:
+
+- one repository search request
+- native ordering
+- no README fetching
+- no local reranking
+
+## Discover Path
+
+Discover mode is explicit:
+
+```bash
+gitquarry search --mode discover ...
+```
+
+Pipeline:
+
+1. resolve host and credential
+2. parse and validate flags
+3. build the seed search
+4. expand candidates using the selected depth
+5. dedupe by `full_name`
+6. enrich metadata used for scoring
+7. optionally fetch README content for a bounded top window
+8. compute rank mode
+9. apply limit
+10. render output
+
+There is no persistent index and no background cache in v1.
+
+## Discovery Depth
+
+Supported values:
+
+- `quick`
+- `balanced`
+- `deep`
+
+### `quick`
+
+- one seed search only
+- rerank only the returned pool
+
+### `balanced`
+
+- seed search
+- updated shard if the pool is too small
+- one recent pushed shard if still needed
+
+### `deep`
+
+- balanced behavior
+- additional older pushed buckets
+- star-bucket shards when the user did not already constrain stars
+
+## Candidate Pool Targets
+
+Discover mode uses bounded target sizes:
+
+- `quick`: `max(25, limit * 3)`, cap `100`
+- `balanced`: `max(50, limit * 5)`, cap `200`
+- `deep`: `max(100, limit * 8)`, cap `400`
+
+The point is breadth without unbounded fan-out.
+
+## README Enrichment
+
+`--readme` is enrichment-only.
+
+It never changes retrieval mode by itself.
+
+The engine:
+
+1. ranks using metadata first
+2. selects a bounded top candidate window
+3. fetches README content only for that window
+4. reranks again if needed
+
+Default README window:
+
+```text
+min(20, max(limit * 2, 10))
+```
+
+## Rank Modes
+
+Supported values:
+
+- `native`
+- `query`
+- `activity`
+- `quality`
+- `blended`
+
+Rules:
+
+- non-native ranks require `--mode discover`
+- `--mode discover` without `--rank` defaults to `blended`
+- `--sort` still influences candidate retrieval, but not final order for non-native ranks
+
+## Blended Weights
+
+Valid only with `--rank blended`:
+
+- `--weight-query`
+- `--weight-activity`
+- `--weight-quality`
+
+Bounds:
+
+- each weight must stay in `0.0..=3.0`
+- all-zero weight sets are invalid
+
+## HTTP Behavior
+
+Gitquarry sends:
+
+- `Accept: application/vnd.github+json`
+- `X-GitHub-Api-Version: 2026-03-10`
+- a fixed `User-Agent`
+
+The HTTP client timeout is `20` seconds.
+
+Retry behavior:
+
+- up to `3` attempts total
+- retries on `403` and `429`
+- respects `retry-after`
+- otherwise respects `x-ratelimit-reset`
+- otherwise falls back to a small jittered delay
+
+## Non-Fatal Contributor Count Failures
+
+Contributor count is intentionally tolerant.
+
+If GitHub says a repository is too large to list contributors through the API, gitquarry treats that as non-fatal and continues with `contributor_count = null`.
+
+That keeps `inspect` and discover enrichment from failing on large repositories.

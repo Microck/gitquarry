@@ -1,0 +1,127 @@
+---
+title: "Troubleshooting"
+description: "Fix the most common gitquarry problems quickly, from auth failures to flag conflicts and host mistakes."
+---
+
+# Troubleshooting
+
+This page is symptom-first.
+
+## `E_AUTH_REQUIRED`
+
+You tried a networked command without an effective token.
+
+Typical fix:
+
+```bash
+gitquarry auth login
+gitquarry auth status
+```
+
+Or use an env var:
+
+```bash
+export GITQUARRY_TOKEN=ghp_your_token_here
+```
+
+## `E_AUTH_INVALID`
+
+The token was empty, malformed, or rejected by GitHub.
+
+Checks:
+
+- confirm the PAT is not empty
+- confirm you pasted the correct token
+- confirm you are targeting the right host
+- re-run `auth login`
+
+## `E_QUERY_REQUIRED`
+
+You ran native search without a query:
+
+```bash
+gitquarry search
+```
+
+Fix it by either:
+
+- adding a query
+- or switching to explicit discover mode with structured filters
+
+```bash
+gitquarry search "rust cli"
+gitquarry search --mode discover --topic cli
+```
+
+## `E_FLAG_REQUIRES_MODE`
+
+You used a discover-only flag without `--mode discover`.
+
+Example:
+
+```bash
+gitquarry search --rank blended "rust cli"
+```
+
+Fix:
+
+```bash
+gitquarry search --mode discover --rank blended "rust cli"
+```
+
+## `E_FLAG_CONFLICT`
+
+Two inputs overlap semantically.
+
+Common examples:
+
+- raw qualifier plus structured flag
+- malformed `owner/repo`
+- mixed date-window styles
+
+Examples:
+
+```bash
+gitquarry search "language:rust" --language go
+gitquarry inspect bad/repo/shape
+```
+
+## `E_HOST_INVALID`
+
+Your `--host` value is empty or malformed.
+
+Good examples:
+
+```bash
+gitquarry --host github.com search "rust cli"
+gitquarry --host https://ghe.example.com inspect org/repo
+```
+
+## Missing Secure Storage
+
+If keyring storage is unavailable, gitquarry will not silently drop to an insecure file.
+
+If you explicitly want the fallback path:
+
+```bash
+export GITQUARRY_ALLOW_INSECURE_STORAGE=1
+gitquarry auth login
+```
+
+For isolated tests, also set:
+
+```bash
+export GITQUARRY_CONFIG_DIR="$(mktemp -d)"
+```
+
+## Rate Limiting Or Slow Discovery
+
+Gitquarry intentionally defaults `--concurrency` to `1` to avoid secondary rate limits.
+
+If GitHub returns retry guidance, gitquarry backs off and retries up to a small bounded limit.
+
+If you need the most predictable behavior:
+
+```bash
+gitquarry search "rust cli" --mode discover --concurrency 1 --progress off
+```

@@ -1,0 +1,48 @@
+---
+title: "FAQ"
+description: "Fast answers to common product, search, auth, and packaging questions about gitquarry."
+---
+
+# FAQ
+
+## Is gitquarry just a GitHub API wrapper?
+
+Not quite.
+
+In native mode it tries to stay close to GitHub repository search. In discover mode it becomes an explicit bounded discovery and reranking layer on top.
+
+## Why is discover mode not the default?
+
+Because the product contract says plain search should remain boring and GitHub-like by default.
+
+## Does `--readme` turn on discover mode automatically?
+
+No.
+
+README enrichment is explicit and enrichment-only.
+
+## Why does `gitquarry search` fail without a query?
+
+Because empty query is invalid in native mode.
+
+If you want structured discovery without a free-text query, use:
+
+```bash
+gitquarry search --mode discover --topic cli
+```
+
+## Does gitquarry support device flow or browser login?
+
+No. v1 is PAT-only.
+
+## Does progress pollute JSON output?
+
+No. Progress stays on `stderr`.
+
+## Is GitHub Enterprise supported?
+
+Yes, on a best-effort basis through `--host`.
+
+## Is there a persistent cache or local index?
+
+No. v1 uses per-command in-memory state only.

@@ -1,0 +1,69 @@
+---
+title: "Shell Completion"
+description: "Generate and install gitquarry completions for Bash, Zsh, Fish, and PowerShell."
+---
+
+# Shell Completion
+
+Gitquarry can generate completion scripts for:
+
+- Bash
+- Zsh
+- Fish
+- PowerShell
+
+The command shape is:
+
+```bash
+gitquarry --generate-completion <shell>
+```
+
+## Bash
+
+```bash
+mkdir -p ~/.local/share/bash-completion/completions
+gitquarry --generate-completion bash > ~/.local/share/bash-completion/completions/gitquarry
+```
+
+Reload your shell or source the file.
+
+## Zsh
+
+```bash
+mkdir -p ~/.zsh/completion
+gitquarry --generate-completion zsh > ~/.zsh/completion/_gitquarry
+```
+
+Make sure that directory is in `fpath`, then restart your shell.
+
+## Fish
+
+```bash
+mkdir -p ~/.config/fish/completions
+gitquarry --generate-completion fish > ~/.config/fish/completions/gitquarry.fish
+```
+
+Fish loads it automatically on the next shell start.
+
+## PowerShell
+
+```powershell
+gitquarry --generate-completion powershell >> $PROFILE
+```
+
+Open a new shell session after updating the profile.
+
+## Regenerating After Upgrades
+
+Completion scripts are generated from the CLI's current command surface.
+
+If you upgrade gitquarry and add new commands or flags, regenerate the script for your shell.
+
+## Quick Check
+
+```bash
+gitquarry --generate-completion bash | head
+gitquarry --generate-completion powershell | head
+```
+
+If generation fails, that is a CLI-level issue rather than a shell-specific problem.

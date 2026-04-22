@@ -1,0 +1,115 @@
+---
+title: "GitHub Enterprise Hosts"
+description: "Use gitquarry against GitHub Enterprise or non-default hosts with correct normalization, auth, and config isolation."
+---
+
+# GitHub Enterprise Hosts
+
+Gitquarry is GitHub.com-first, but it can also target GitHub Enterprise hosts through `--host`.
+
+## Accepted Host Inputs
+
+Gitquarry accepts:
+
+- bare hostnames like `github.example.com`
+- full web URLs like `https://github.example.com`
+- explicit API roots like `https://github.example.com/api/v3`
+- localhost-style API roots for tests like `http://127.0.0.1:8787/api/v3`
+
+Examples:
+
+```bash
+gitquarry --host github.example.com auth login
+gitquarry --host https://github.example.com search "internal platform"
+gitquarry --host https://github.example.com/api/v3 inspect org/repo
+```
+
+## Normalization Rules
+
+Gitquarry normalizes every host input into:
+
+- a canonical web host used for credential lookup
+- a canonical API base used for HTTP requests
+
+Special handling:
+
+- `github.com`
+- `www.github.com`
+- `api.github.com`
+
+All normalize to:
+
+- web host: `github.com`
+- API base: `https://api.github.com`
+
+Custom hosts keep their scheme and host, then append `/api/v3` if needed.
+
+Examples:
+
+| Input | Normalized web host | Normalized API base |
+| --- | --- | --- |
+| `github.com` | `github.com` | `https://api.github.com` |
+| `https://git.example.com` | `git.example.com` | `https://git.example.com/api/v3` |
+| `http://git.example.com` | `git.example.com` | `http://git.example.com/api/v3` |
+| `https://git.example.com/api/v3` | `git.example.com` | `https://git.example.com/api/v3` |
+| `http://127.0.0.1:8787/api/v3` | `127.0.0.1:8787` | `http://127.0.0.1:8787/api/v3` |
+
+## Host-Scoped Auth
+
+Credentials are stored and resolved per normalized host.
+
+That means:
+
+- logging into GitHub.com does not log you into GitHub Enterprise
+- each host can have a different PAT
+- `auth status` and `auth logout` are host-aware
+
+Examples:
+
+```bash
+gitquarry --host github.com auth status
+gitquarry --host https://ghe.example.com auth login
+gitquarry --host https://ghe.example.com auth status
+```
+
+## Host-Specific Environment Variables
+
+Gitquarry derives one environment variable name per normalized host:
+
+```bash
+GITQUARRY_TOKEN_<NORMALIZED_HOST>
+```
+
+Examples:
+
+```bash
+export GITQUARRY_TOKEN_GITHUB_COM=ghp_example
+export GITQUARRY_TOKEN_GIT_EXAMPLE_COM=ghp_example
+export GITQUARRY_TOKEN_127_0_0_1_8787=ghp_example
+```
+
+Resolution order is:
+
+1. host-specific env var
+2. global `GITQUARRY_TOKEN`
+3. saved secure credential
+4. explicit insecure-file fallback
+
+See [config-and-credentials](/reference/config-and-credentials) for the full resolution model.
+
+## Good Enterprise Workflow
+
+```bash
+gitquarry --host https://ghe.example.com auth login
+gitquarry --host https://ghe.example.com search "platform tooling" --org engineering
+gitquarry --host https://ghe.example.com inspect engineering/internal-cli
+```
+
+If you script against multiple hosts, set `GITQUARRY_CONFIG_DIR` to an isolated temp directory during tests or CI.
+
+## Common Mistakes
+
+- Passing an empty `--host` value. That fails with `E_HOST_INVALID`.
+- Assuming GitHub.com credentials automatically apply to GitHub Enterprise.
+- Mixing web hosts and API bases mentally. Gitquarry normalizes them, but auth is keyed to the normalized web host.
+- Expecting device flow or browser login. v1 is PAT-only.

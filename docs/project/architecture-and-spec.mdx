@@ -1,0 +1,77 @@
+---
+title: "Architecture And Spec"
+description: "Understand the product contract and system structure that constrain gitquarry changes."
+---
+
+# Architecture And Spec
+
+Two files define the project at the highest level:
+
+- `SPEC.md`
+- `ARCHITECTURE.md`
+
+This page is the short operator version of those contracts.
+
+## Core Product Rule
+
+Plain search must stay close to native GitHub repository search.
+
+That means:
+
+- one GitHub repository-search request
+- native ordering
+- no silent reranking
+- no silent metadata enrichment
+- no silent README fetching
+
+Anything heavier belongs behind explicit flags.
+
+## System Shape
+
+The CLI is split into five subsystems:
+
+- command parsing and validation
+- auth and host resolution
+- native search execution
+- enhanced discovery and reranking
+- output and error rendering
+
+## Key Source Files
+
+| File | Responsibility |
+| --- | --- |
+| `src/app.rs` | top-level orchestration and command execution |
+| `src/query.rs` | flag validation, compiled query building, discover planning |
+| `src/github.rs` | GitHub API client, retries, README/release/contributor fetches |
+| `src/credential.rs` | token storage and resolution |
+| `src/host.rs` | host normalization and env-var naming |
+| `src/output.rs` | pretty/json/csv rendering and stdout/stderr contract |
+| `tests/cli-smoke.rs` | fixture-backed contract tests |
+
+## Important Behavioral Constraints
+
+- auth is PAT-only in v1
+- host handling is explicit and normalized
+- config is conservative and must not silently enable enhanced behavior
+- discover mode is bounded, not open-ended
+- errors are symbolic plain text on `stderr`
+- structured output must keep `stdout` clean
+
+## What Counts As A Contract Change
+
+Treat these as contract-level changes:
+
+- public command surface
+- observable output shape
+- persistence format
+- error semantics
+- ranking semantics
+- release/distribution behavior
+
+If one of those changes, update:
+
+- the code
+- tests
+- README
+- relevant Mintlify pages
+- release runbook when applicable

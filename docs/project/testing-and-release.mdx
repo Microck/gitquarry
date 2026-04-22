@@ -1,0 +1,80 @@
+---
+title: "Testing And Release"
+description: "See how gitquarry is verified locally, in CI, and during release and live-smoke workflows."
+---
+
+# Testing And Release
+
+Gitquarry uses a layered verification strategy.
+
+## Local Verification
+
+Core commands:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --locked
+cargo package --locked --allow-dirty
+npm pack --dry-run ./npm
+```
+
+Useful CLI help checks:
+
+```bash
+cargo run -- --help
+cargo run -- search --help
+cargo run -- inspect --help
+cargo run -- auth login --help
+```
+
+## Test Style
+
+The main contract suite lives in `tests/cli-smoke.rs`.
+
+Important properties:
+
+- fixture-backed HTTP behavior
+- no module mocking
+- validation before auth/network when possible
+- both success and failure paths
+
+## CI Workflow
+
+`.github/workflows/ci.yml` runs:
+
+- format
+- clippy
+- `cargo test --locked`
+- `cargo package --locked --allow-dirty`
+- CLI help smoke
+- cross-platform test matrix on Linux, macOS, and Windows
+
+## Live Smoke Workflow
+
+`.github/workflows/live-smoke.yml` is for real-token verification when the `GITQUARRY_TOKEN` secret is configured.
+
+It checks:
+
+- env-token auth status
+- live `search`
+- live `inspect`
+- persisted login through isolated config state
+
+That workflow is the preferred place for real GitHub traffic checks.
+
+## Release Workflow
+
+`.github/workflows/release.yml` runs on `v*` tags.
+
+It:
+
+- verifies tag-to-version alignment
+- validates the npm wrapper version
+- runs the normal verification stack
+- builds release assets for all supported targets
+- uploads archives and raw binaries
+- publishes the GitHub release
+- optionally publishes npm and crates.io when secrets are configured
+
+For the full operational checklist, use [release-runbook](/release-runbook).

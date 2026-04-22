@@ -1,0 +1,148 @@
+---
+title: "Output And Scripting"
+description: "Use gitquarry safely in scripts, pipelines, CI, and agent workflows."
+---
+
+# Output And Scripting
+
+Gitquarry is designed to behave cleanly in pipelines.
+
+The main rule is simple:
+
+- structured data goes to `stdout`
+- progress and errors go to `stderr`
+
+## Output Formats
+
+Supported formats:
+
+- `pretty`
+- `json`
+- `compact`
+- `csv`
+
+### `pretty`
+
+Human-first terminal output.
+
+Use it when reading results directly in a shell:
+
+```bash
+gitquarry search --format pretty "rust cli"
+```
+
+### `json`
+
+Pretty-printed structured output for tools and scripts:
+
+```bash
+gitquarry search --format json "rust cli"
+gitquarry inspect rust-lang/rust --format json
+```
+
+### `compact`
+
+Minified JSON for pipelines or logs:
+
+```bash
+gitquarry search --format compact "rust cli"
+```
+
+### `csv`
+
+Flat export-friendly output:
+
+```bash
+gitquarry search --format csv "rust cli"
+gitquarry inspect rust-lang/rust --format csv
+```
+
+## Progress Behavior
+
+Progress is controlled by:
+
+```bash
+--progress auto|on|off
+```
+
+Rules:
+
+- `auto` is the default
+- in `auto`, gitquarry only prints progress when `stderr` is a TTY
+- progress never goes to `stdout`
+
+That means this is safe:
+
+```bash
+gitquarry search "rust cli" --format json | jq '.items[0].full_name'
+```
+
+## JSON Examples
+
+Search pipeline:
+
+```bash
+gitquarry search "rust cli" --format json | jq '.items[].full_name'
+```
+
+Compact pipeline:
+
+```bash
+gitquarry search "release automation" --mode discover --format compact | jq '.total_count'
+```
+
+Inspect pipeline:
+
+```bash
+gitquarry inspect rust-lang/rust --readme --format json | jq '.repository.latest_release.tag_name'
+```
+
+## CSV Examples
+
+Export search results:
+
+```bash
+gitquarry search "vector database" --format csv > repos.csv
+```
+
+Export one inspected repository:
+
+```bash
+gitquarry inspect rust-lang/rust --format csv > repo.csv
+```
+
+## CI-Friendly Usage
+
+For deterministic CI or agent runs:
+
+- prefer `json` or `compact`
+- set `--progress off` if you want no progress noise at all
+- isolate config state with `GITQUARRY_CONFIG_DIR`
+- prefer env tokens over writing credentials into shared state
+
+Example:
+
+```bash
+GITQUARRY_CONFIG_DIR="$(mktemp -d)" \
+GITQUARRY_TOKEN="$GITHUB_TOKEN" \
+gitquarry search "rust cli" --format compact --progress off
+```
+
+## Error Handling
+
+Errors are:
+
+- plain text
+- prefixed with a symbolic code
+- written to `stderr`
+- returned with exit code `1`
+
+Examples:
+
+```text
+E_QUERY_REQUIRED: empty query is invalid outside explicit discovery mode
+E_FLAG_REQUIRES_MODE: --rank blended requires --mode discover
+E_FLAG_CONFLICT: raw query qualifier language: conflicts with overlapping structured flags
+```
+
+See [error reference](/reference/error-reference) for the code list.

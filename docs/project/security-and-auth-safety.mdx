@@ -1,0 +1,60 @@
+---
+title: "Security And Auth Safety"
+description: "Understand token handling, insecure fallback boundaries, and safe local verification practices."
+---
+
+# Security And Auth Safety
+
+Gitquarry is read-only, but it still handles sensitive auth material.
+
+## Scope
+
+v1 is:
+
+- PAT-only
+- host-scoped
+- public-repository-focused
+- read-only from the CLI's perspective
+
+## Secure Default
+
+The default path is secure OS storage.
+
+Gitquarry does not claim login succeeded unless it can read the token back after saving it.
+
+## Insecure Fallback Is Explicit
+
+The fallback credential file exists only when you opt in:
+
+```bash
+export GITQUARRY_ALLOW_INSECURE_STORAGE=1
+```
+
+Without that opt-in, gitquarry returns `E_AUTH_STORAGE` rather than silently writing plaintext credentials.
+
+## Safe Local Verification
+
+When testing locally or in automation:
+
+- prefer `GITQUARRY_TOKEN` or host-specific env vars
+- isolate state with `GITQUARRY_CONFIG_DIR`
+- avoid touching a real user config directory during tests
+
+Example:
+
+```bash
+GITQUARRY_CONFIG_DIR="$(mktemp -d)" \
+GITQUARRY_ALLOW_INSECURE_STORAGE=1 \
+printf '%s' "$GITHUB_TOKEN" | gitquarry auth login --token-stdin
+```
+
+## Docs And Workflow Hygiene
+
+If you change auth behavior, update:
+
+- README
+- authentication docs
+- output/error docs if user-visible messages changed
+- release or live-smoke docs if verification changed
+
+The live-smoke workflow is the correct place for real-token end-to-end checks in CI.

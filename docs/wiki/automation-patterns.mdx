@@ -1,0 +1,67 @@
+---
+title: "Automation Patterns"
+description: "Use gitquarry in shell pipelines, scripts, CI jobs, and agent workflows without breaking its contracts."
+---
+
+# Automation Patterns
+
+Gitquarry works well in automation when you treat output and state explicitly.
+
+## Pattern: JSON To `jq`
+
+```bash
+gitquarry search "rust cli" --format json | jq '.items[].full_name'
+```
+
+## Pattern: Compact JSON For Logs
+
+```bash
+gitquarry search "release automation" --mode discover --format compact --progress off
+```
+
+## Pattern: CSV Export
+
+```bash
+gitquarry search "vector database" --format csv > repos.csv
+```
+
+## Pattern: Stateless Env-Token Execution
+
+```bash
+GITQUARRY_TOKEN="$GITHUB_TOKEN" \
+gitquarry inspect rust-lang/rust --format json
+```
+
+## Pattern: Isolated Config State
+
+```bash
+GITQUARRY_CONFIG_DIR="$(mktemp -d)" \
+GITQUARRY_ALLOW_INSECURE_STORAGE=1 \
+printf '%s' "$GITHUB_TOKEN" | gitquarry auth login --token-stdin
+```
+
+Use this for tests and ephemeral agent runs.
+
+## Pattern: Enterprise Host Automation
+
+```bash
+GITQUARRY_TOKEN_GHE_EXAMPLE_COM="$GITHUB_TOKEN" \
+gitquarry --host https://ghe.example.com search "internal platform" --format compact
+```
+
+## Pattern: CI-Friendly Discover Search
+
+```bash
+gitquarry search "rust cli" \
+  --mode discover \
+  --rank blended \
+  --progress off \
+  --format compact
+```
+
+## What To Avoid
+
+- parsing `pretty` output in scripts
+- assuming progress or errors will appear on `stdout`
+- relying on global persistent config during CI
+- silently turning on discover behavior in wrappers without showing it

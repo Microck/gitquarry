@@ -1,0 +1,76 @@
+# gitquarry
+
+> Rust CLI for public GitHub repository search that keeps plain search close to native GitHub behavior and makes discovery, reranking, and README enrichment explicit.
+
+## Key Facts
+
+- Canonical docs: https://gitquarry.micr.dev/
+- Source repository: https://github.com/Microck/gitquarry
+- Primary install surfaces: npm, Homebrew tap, Scoop bucket, AUR, GitHub Releases, and repo-native Nix
+- Product contract: plain `search` stays GitHub-like by default
+- Enhanced discovery only happens with explicit flags such as `--mode discover`
+- Auth is PAT-only in v1 and credentials are host-scoped
+- Output formats: `pretty`, `json`, `compact`, `csv`
+- Progress goes to `stderr`; structured output stays on `stdout`
+
+## Docs
+
+- [Introduction](https://gitquarry.micr.dev/): Product overview, core principles, and where to start.
+- [Installation](https://gitquarry.micr.dev/guides/installation): Install matrix for npm, Homebrew, Scoop, AUR, GitHub Releases, Nix, and source.
+- [Quickstart](https://gitquarry.micr.dev/guides/quickstart): First successful run from auth through search, inspect, discover mode, and structured output.
+- [Authentication](https://gitquarry.micr.dev/guides/authentication): PAT requirements, secure storage, environment precedence, and insecure fallback.
+- [Discovery Mode](https://gitquarry.micr.dev/guides/discovery-mode): When to stay native and when to opt into bounded discovery and reranking.
+- [Output And Scripting](https://gitquarry.micr.dev/guides/output-and-scripting): Safe scripting patterns for JSON, CSV, progress, and CI.
+- [Search Recipes](https://gitquarry.micr.dev/guides/search-recipes): Copy-paste search patterns for native and discover workflows.
+
+## Commands
+
+- [search](https://gitquarry.micr.dev/commands/search): Primary repository search command with native and discover modes.
+- [inspect](https://gitquarry.micr.dev/commands/inspect): Explicit `owner/repo` inspection with optional README inclusion.
+- [auth](https://gitquarry.micr.dev/commands/auth): Host-scoped PAT login, status, and logout.
+- [config](https://gitquarry.micr.dev/commands/config): Effective config path and config payload inspection.
+
+## Reference
+
+- [CLI Overview](https://gitquarry.micr.dev/reference/cli-overview): Root command surface, global flags, version command, and shell completion support.
+- [Config And Credentials](https://gitquarry.micr.dev/reference/config-and-credentials): Config fields, `GITQUARRY_CONFIG_DIR`, token precedence, and auth storage rules.
+- [Engine Internals](https://gitquarry.micr.dev/reference/engine-internals): Native search, discover expansion, retries, scoring, and README window behavior.
+- [Output Contract](https://gitquarry.micr.dev/reference/output-contract): stdout vs stderr rules and scripting guarantees.
+- [Output Schemas](https://gitquarry.micr.dev/reference/output-schemas): Exact JSON and CSV shapes for `search` and `inspect`.
+- [Error Reference](https://gitquarry.micr.dev/reference/error-reference): Stable error codes and typical fixes.
+- [Search Behavior](https://gitquarry.micr.dev/reference/search-behavior): Behavioral contract for native vs discover semantics.
+- [SPEC.md](https://github.com/Microck/gitquarry/blob/main/SPEC.md): Source-of-truth product contract.
+- [ARCHITECTURE.md](https://github.com/Microck/gitquarry/blob/main/ARCHITECTURE.md): System-level architecture and request-pipeline model.
+
+## Project
+
+- [Architecture And Spec](https://gitquarry.micr.dev/project/architecture-and-spec): Short operator version of the repo contract and system structure.
+- [Development](https://gitquarry.micr.dev/project/development): Local build, test, and docs workflows.
+- [Testing And Release](https://gitquarry.micr.dev/project/testing-and-release): CI, live smoke, release verification, and local checks.
+- [Packaging And Release](https://gitquarry.micr.dev/project/packaging-and-release): How GitHub Releases, npm, Homebrew, Scoop, AUR, and Nix fit together.
+- [Security And Auth Safety](https://gitquarry.micr.dev/project/security-and-auth-safety): Token handling, insecure fallback boundaries, and safe verification practices.
+- [Contributing](https://gitquarry.micr.dev/project/contributing): Expected workflow for behavior changes, tests, and docs sync.
+- [Release Runbook](https://gitquarry.micr.dev/release-runbook): Maintainer release checklist and recovery paths.
+
+## Wiki
+
+- [Native Vs Discover](https://gitquarry.micr.dev/wiki/native-vs-discover): Side-by-side comparison of the two search modes.
+- [Automation Patterns](https://gitquarry.micr.dev/wiki/automation-patterns): Shell, CI, agent, and JSON/CSV pipeline patterns.
+- [Repository Signals](https://gitquarry.micr.dev/wiki/repository-signals): What stars, forks, releases, contributors, README, and license fields mean.
+- [FAQ](https://gitquarry.micr.dev/wiki/faq): Common product and operational questions.
+- [Troubleshooting Playbook](https://gitquarry.micr.dev/wiki/troubleshooting-playbook): Longer symptom-to-fix operator guide.
+
+## Release Channels
+
+- [GitHub Releases](https://github.com/Microck/gitquarry/releases): Canonical release assets, checksums, and release notes.
+- [npm](https://www.npmjs.com/package/gitquarry): Node wrapper package that downloads the matching native binary.
+- [Homebrew tap](https://github.com/Microck/homebrew-gitquarry): Public Homebrew distribution repo.
+- [Scoop bucket](https://github.com/Microck/scoop-gitquarry): Public Windows Scoop distribution repo.
+- [AUR package](https://aur.archlinux.org/packages/gitquarry): Arch Linux package built from the release source tarball.
+- [Nix flake](https://github.com/Microck/gitquarry/blob/main/flake.nix): Repo-native Nix entry point.
+
+## Optional
+
+- [README](https://github.com/Microck/gitquarry/blob/main/README.md): Human-facing overview and install guide.
+- [Packaging directory](https://github.com/Microck/gitquarry/tree/main/packaging): Repo-local packaging mirrors for Homebrew, Scoop, and AUR.
+- [Issue templates](https://github.com/Microck/gitquarry/tree/main/.github/ISSUE_TEMPLATE): Bug and feature request entry points.
