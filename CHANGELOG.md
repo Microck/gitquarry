@@ -6,6 +6,8 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+## [0.1.0]
+
 - Initial public-repo preparation
 - Mintlify documentation scaffold
 - CI, release, and live-smoke workflow setup
