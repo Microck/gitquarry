@@ -7,8 +7,8 @@ description: Work effectively in the gitquarry repository. Use when changing git
 
 ## Read First
 
-- Read `SPEC.md` before changing observable behavior.
-- Read `ARCHITECTURE.md` before changing request flow, host handling, retries, or ranking internals.
+- Read `docs/project/specification.mdx` before changing observable behavior.
+- Read `docs/project/architecture.mdx` before changing request flow, host handling, retries, or ranking internals.
 - Read the relevant page under `docs/` before changing the command surface or output shape.
 - Read `.github/workflows/ci.yml`, `.github/workflows/release.yml`, and `.github/workflows/live-smoke.yml` before changing release or verification logic.
 

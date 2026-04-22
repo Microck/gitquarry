@@ -1,18 +1,25 @@
-# gitquarry v1 spec
+---
+title: "Specification"
+description: "Full product contract for gitquarry v1."
+---
 
-## product summary
+# Specification
+
+This page replaces the former root-level `SPEC.md` file.
+
+## Product Summary
 
 `gitquarry` is a Rust terminal CLI for public GitHub repository search.
 
 The core contract is:
 
-- Plain `search "query"` is native GitHub-style repository search.
-- Custom filtering and better discovery exist behind explicit flags.
-- Nothing heavier happens silently.
+- plain `search "query"` is native GitHub-style repository search
+- custom filtering and better discovery exist behind explicit flags
+- nothing heavier happens silently
 
-## command surface
+## Command Surface
 
-### root
+### Root
 
 - `gitquarry search [OPTIONS] [QUERY]`
 - `gitquarry inspect [OPTIONS] <OWNER/REPO>`
@@ -25,50 +32,50 @@ The core contract is:
 - `gitquarry --version`
 - `gitquarry --generate-completion <bash|zsh|fish|powershell>`
 
-### global options
+### Global Options
 
 - `--host <HOST_OR_URL>`
-  - Accept bare hostnames or full URLs.
-  - Normalize internally.
-  - Default host is `github.com` unless overridden by config.
+  - accept bare hostnames or full URLs
+  - normalize internally
+  - default host is `github.com` unless overridden by config
 
-## auth
+## Auth
 
-### scope
+### Scope
 
-- Auth is always required.
-- v1 is PAT-only.
-- Device flow is out of scope for v1.
-- v1 is read-only and public-repos-only.
+- auth is always required
+- v1 is PAT-only
+- device flow is out of scope for v1
+- v1 is read-only and public-repos-only
 
-### commands
+### Commands
 
 - `auth login`
-  - Interactive guided PAT setup.
-  - Teaches the user how to create a PAT.
-  - Recommends fine-grained PATs when possible.
-  - Validates the PAT immediately.
-  - Stores credentials per host.
+  - interactive guided PAT setup
+  - teaches the user how to create a PAT
+  - recommends fine-grained PATs when possible
+  - validates the PAT immediately
+  - stores credentials per host
 - `auth status`
-  - Shows whether the current effective host has a saved PAT.
+  - shows whether the current effective host has a saved PAT
 - `auth logout`
-  - Deletes the PAT for the current effective host.
+  - deletes the PAT for the current effective host
 
-### storage
+### Storage
 
-- Secrets are stored in the OS credential store by default.
-- Env vars override saved credentials.
-- If secure storage is unavailable, insecure file fallback is allowed only with explicit opt-in and warning.
-- PATs are stored per host, not globally.
+- secrets are stored in the OS credential store by default
+- env vars override saved credentials
+- if secure storage is unavailable, insecure file fallback is allowed only with explicit opt-in and warning
+- PATs are stored per host, not globally
 
-## config
+## Config
 
-### location
+### Location
 
-- Store config in a standard per-user config path.
-- Do not store config in the repo or current working directory.
+- store config in a standard per-user config path
+- do not store config in the repo or current working directory
 
-### allowed saved defaults
+### Allowed Saved Defaults
 
 - `host`
 - `format`
@@ -76,7 +83,7 @@ The core contract is:
 - `progress`
 - color preference
 
-### disallowed saved defaults
+### Disallowed Saved Defaults
 
 These must remain explicit per command:
 
@@ -88,48 +95,48 @@ These must remain explicit per command:
 - blended ranking weights
 - discovery-only engine knobs
 
-## search
+## Search
 
-## synopsis
+### Synopsis
 
 ```bash
 gitquarry search [OPTIONS] [QUERY]
 ```
 
-### base behavior
+### Base Behavior
 
-- If the user passes no enhancement flags, search behaves as close to native GitHub repository search as possible.
-- Default output format is `pretty`.
-- Default result limit is `10`.
-- Empty query is invalid in plain native search.
+- if the user passes no enhancement flags, search behaves as close to native GitHub repository search as possible
+- default output format is `pretty`
+- default result limit is `10`
+- empty query is invalid in plain native search
 
-### output formats
+### Output Formats
 
 - `pretty` - default
 - `json`
 - `compact`
 - `csv`
 
-### pretty output visual default
+### Pretty Output Visual Default
 
-- The default accent color for human-facing `pretty` output is electric blue.
-- The exact electric-blue shade does not need to be fixed in v1 as long as it stays in that visual family.
-- ANSI color choices such as `21` or `27` are acceptable defaults.
-- Users may override color preference through config or terminal settings where supported.
+- the default accent color for human-facing `pretty` output is electric blue
+- the exact electric-blue shade does not need to be fixed in v1 as long as it stays in that visual family
+- ANSI color choices such as `21` or `27` are acceptable defaults
+- users may override color preference through config or terminal settings where supported
 
-### retrieval modes
+### Retrieval Modes
 
 - `--mode native`
-  - One native GitHub repository search only.
+  - one native GitHub repository search only
 - `--mode discover`
-  - Explicit enhanced retrieval.
-  - Uses staged candidate collection and local reranking.
+  - explicit enhanced retrieval
+  - uses staged candidate collection and local reranking
 
 Default:
 
 - no `--mode` flag -> native behavior
 
-### rank modes
+### Rank Modes
 
 - `--rank native`
 - `--rank query`
@@ -139,12 +146,12 @@ Default:
 
 Rules:
 
-- No enhancement flags -> effective rank is native.
-- `--mode discover` with no `--rank` -> default to `blended`.
-- `--rank` never changes retrieval mode.
-- `--sort` never changes rank mode.
+- no enhancement flags -> effective rank is native
+- `--mode discover` with no `--rank` -> default to `blended`
+- `--rank` never changes retrieval mode
+- `--sort` never changes rank mode
 
-### native ordering
+### Native Ordering
 
 `--sort` is reserved for native GitHub-like retrieval ordering.
 
@@ -156,12 +163,12 @@ Supported values:
 
 Rules:
 
-- In `--rank native`, final output order follows native ordering and `--sort`.
-- In non-native rank modes, `--sort` influences candidate retrieval only. Final displayed order comes from the selected rank mode.
+- in `--rank native`, final output order follows native ordering and `--sort`
+- in non-native rank modes, `--sort` influences candidate retrieval only; final displayed order comes from the selected rank mode
 
-### structured filter flags
+### Structured Filter Flags
 
-#### owner / visibility
+#### Owner / Visibility
 
 - `--user <USER>`
 - `--org <ORG>`
@@ -169,13 +176,13 @@ Rules:
 - `--template <true|false>`
 - `--fork <false|true|only>`
 
-#### metadata / classification
+#### Metadata / Classification
 
 - `--language <LANG>` repeatable
 - `--topic <TOPIC>` repeatable
 - `--license <LICENSE>` repeatable
 
-#### numeric ranges
+#### Numeric Ranges
 
 - `--min-stars <N>`
 - `--max-stars <N>`
@@ -184,7 +191,7 @@ Rules:
 - `--min-size <N>`
 - `--max-size <N>`
 
-#### absolute date filters
+#### Absolute Date Filters
 
 - `--created-after <YYYY-MM-DD>`
 - `--created-before <YYYY-MM-DD>`
@@ -193,7 +200,7 @@ Rules:
 - `--pushed-after <YYYY-MM-DD>`
 - `--pushed-before <YYYY-MM-DD>`
 
-#### relative date filters
+#### Relative Date Filters
 
 - `--created-within <DURATION>`
 - `--updated-within <DURATION>`
@@ -207,15 +214,15 @@ Relative duration syntax:
 - `6m`
 - `1y`
 
-### filter semantics
+### Filter Semantics
 
-- Repeated structured flags use AND semantics.
-- OR semantics remain available only through raw GitHub query syntax in the query string.
-- `--topic` is GitHub-native topics only.
-- Custom label/category matching is not exposed as a first-class flag.
-- Custom label/category interpretation is query-driven and only available in enhanced/discovery mode.
+- repeated structured flags use AND semantics
+- OR semantics remain available only through raw GitHub query syntax in the query string
+- `--topic` is GitHub-native topics only
+- custom label/category matching is not exposed as a first-class flag
+- custom label/category interpretation is query-driven and only available in enhanced/discovery mode
 
-### native vs post-filter behavior
+### Native vs Post-Filter Behavior
 
 Compile directly into GitHub-native search when possible:
 
@@ -237,10 +244,10 @@ Apply post-retrieval using repo metadata:
 
 - `updated-*`
 
-### empty query rules
+### Empty Query Rules
 
-- Plain native search requires a query.
-- Empty query is allowed only in explicit discovery-oriented usage.
+- plain native search requires a query
+- empty query is allowed only in explicit discovery-oriented usage
 
 Examples:
 
@@ -248,10 +255,9 @@ Examples:
 - valid: `gitquarry search --mode discover --topic cli --sort updated`
 - invalid: `gitquarry search`
 
-### raw query plus structured flags
+### Raw Query Plus Structured Flags
 
-The free-text query is the base query.
-Structured flags append constraints.
+The free-text query is the base query. Structured flags append constraints.
 
 If the user manually writes a raw GitHub qualifier in the query and also passes an overlapping structured flag, fail clearly instead of guessing.
 
@@ -261,7 +267,7 @@ Examples of conflicts:
 - `topic:cli` plus `--topic sdk`
 - `stars:>100` plus `--min-stars 200`
 
-### discovery depth
+### Discovery Depth
 
 Discovery depth is discover-only.
 
@@ -275,7 +281,7 @@ Default in discover mode:
 
 - `balanced`
 
-### candidate pool targets
+### Candidate Pool Targets
 
 Discovery uses a deduped candidate pool before final reranking.
 
@@ -285,38 +291,38 @@ Defaults:
 - `balanced`: target `max(50, limit * 5)`, cap `200`
 - `deep`: target `max(100, limit * 8)`, cap `400`
 
-### discovery retrieval behavior
+### Discovery Retrieval Behavior
 
 Discovery retrieval is staged and bounded.
 
-#### quick
+#### Quick
 
-- Seed with one native GitHub repository search only.
-- No extra fan-out beyond the initial retrieval.
-- Rerank only the returned candidate set.
+- seed with one native GitHub repository search only
+- no extra fan-out beyond the initial retrieval
+- rerank only the returned candidate set
 
-#### balanced
+#### Balanced
 
-- Seed with one native GitHub repository search.
-- If the deduped pool is below target:
+- seed with one native GitHub repository search
+- if the deduped pool is below target:
   - run the same search with `sort=updated`
   - run one recency-biased shard using a recent `pushed` bucket
 - stop as soon as the target pool is reached
 
-#### deep
+#### Deep
 
-- Includes balanced behavior.
-- If still below target:
+- includes balanced behavior
+- if still below target:
   - add older `pushed` bucket searches
   - add star-bucket shard searches if the user did not already constrain stars
 - stop as soon as the target pool is reached
 
-### README enrichment
+### README Enrichment
 
-- `--readme` is explicit.
-- No README fetching occurs by default.
-- `--readme` never changes retrieval mode by itself.
-- README is enrichment-only, not candidate retrieval.
+- `--readme` is explicit
+- no README fetching occurs by default
+- `--readme` never changes retrieval mode by itself
+- README is enrichment-only, not candidate retrieval
 
 README window:
 
@@ -324,12 +330,12 @@ README window:
 - then README enrichment inspects only the top candidate window
 - default window = `min(20, max(limit * 2, 10))`
 
-### explainability
+### Explainability
 
-- `--explain` is explicit.
-- Without `--explain`, no ranking reasons are shown.
-- In native mode, `--explain` is minimal or unsupported.
-- In enhanced modes, `--explain` can show:
+- `--explain` is explicit
+- without `--explain`, no ranking reasons are shown
+- in native mode, `--explain` is minimal or unsupported
+- in enhanced modes, `--explain` can show:
   - matched surfaces
   - query score
   - activity score
@@ -338,7 +344,7 @@ README window:
   - effective weights
   - key contributing signals
 
-### blended ranking weights
+### Blended Ranking Weights
 
 Weight flags:
 
@@ -353,12 +359,11 @@ Rules:
 - default weight for each component is `1.0`
 - all-zero weight sets are invalid
 
-## scoring
+## Scoring
 
-### query score
+### Query Score
 
-Literal-first only.
-No automatic synonym expansion in v1.
+Literal-first only. No automatic synonym expansion in v1.
 
 Use weighted literal matching across:
 
@@ -367,7 +372,7 @@ Use weighted literal matching across:
 - topics
 - README only if `--readme` is enabled
 
-### activity score
+### Activity Score
 
 Use only:
 
@@ -376,7 +381,7 @@ Use only:
 - release recency
 - archived penalty
 
-### quality score
+### Quality Score
 
 Use only:
 
@@ -387,10 +392,9 @@ Use only:
 - README presence
 - template status
 
-No issue-based signals in v1.
-No momentum/trending signals in v1.
+No issue-based signals in v1. No momentum or trending signals in v1.
 
-### blended score
+### Blended Score
 
 For `--rank blended`, compute a normalized weighted average:
 
@@ -398,22 +402,22 @@ For `--rank blended`, compute a normalized weighted average:
 
 Only include components whose weight is greater than zero.
 
-## inspect
+## Inspect
 
-## synopsis
+### Synopsis
 
 ```bash
 gitquarry inspect [OPTIONS] <OWNER/REPO>
 ```
 
-### behavior
+### Behavior
 
-- Accept only explicit `owner/repo`.
-- No cross-command memory.
-- Default is metadata-first.
-- README is optional and explicit.
+- accept only explicit `owner/repo`
+- no cross-command memory
+- default is metadata-first
+- README is optional and explicit
 
-### defaults
+### Defaults
 
 - output format defaults to `pretty`
 - default content includes:
@@ -430,12 +434,12 @@ gitquarry inspect [OPTIONS] <OWNER/REPO>
   - open issues count
   - latest release summary when cheaply available
 
-### inspect flags
+### Inspect Flags
 
 - `--readme`
 - `--format pretty|json|compact|csv`
 
-## progress
+## Progress
 
 - progress output goes to `stderr` only
 - default progress mode is `auto`
@@ -445,16 +449,16 @@ gitquarry inspect [OPTIONS] <OWNER/REPO>
 - prefer phase-based progress and counts over fake ETA
 - show ETA only for bounded loops where estimation is defensible
 
-## advanced engine flags
+## Advanced Engine Flags
 
 - `--concurrency <N>`
-  - discover/enrichment only
+  - discover or enrichment only
   - default `1`
-  - error outside explicit discovery/enrichment usage
+  - error outside explicit discovery or enrichment usage
 
 Other engine internals remain internal in v1.
 
-## error handling
+## Error Handling
 
 - fail on the first clear error
 - print plain text to `stderr`
@@ -469,7 +473,7 @@ Examples:
 
 Errors are never emitted as JSON in v1.
 
-## version and completion
+## Version And Completion
 
 - support both `version` and root `--version`
 - include shell completion generation in v1

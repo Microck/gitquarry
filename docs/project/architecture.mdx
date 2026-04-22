@@ -1,6 +1,13 @@
-# gitquarry architecture
+---
+title: "Architecture"
+description: "Full system architecture and request pipeline contract for gitquarry."
+---
 
-## system overview
+# Architecture
+
+This page replaces the former root-level `ARCHITECTURE.md` file.
+
+## System Overview
 
 The CLI is split into five subsystems:
 
@@ -10,9 +17,9 @@ The CLI is split into five subsystems:
 - enhanced discovery and reranking
 - rendering and error reporting
 
-## request pipeline
+## Request Pipeline
 
-### native search
+### Native Search
 
 1. Resolve effective host.
 2. Resolve host-scoped PAT.
@@ -23,90 +30,92 @@ The CLI is split into five subsystems:
 7. Apply post-filters that are not natively expressible, such as `updated-*`.
 8. Render in the selected output format.
 
-### discovery search
+### Discovery Search
 
 1. Resolve effective host and PAT.
 2. Parse and validate flags.
 3. Build the seed search.
 4. Collect candidates using the staged fan-out plan for the selected depth.
 5. Dedupe on `full_name`.
-6. Enrich candidates with repo metadata needed for activity/quality scoring.
+6. Enrich candidates with repo metadata needed for activity and quality scoring.
 7. Optionally enrich the top README window if `--readme` is enabled.
-8. Compute selected rank mode.
+8. Compute the selected rank mode.
 9. Apply limit.
 10. Render output, optionally with `--explain`.
 
-### inspect
+### Inspect
 
 1. Resolve effective host and PAT.
 2. Fetch repo metadata by explicit `owner/repo`.
 3. Optionally fetch README if `--readme` is enabled.
 4. Render details.
 
-## storage model
+## Storage Model
 
-### secrets
+### Secrets
 
-- PATs are stored per host in the OS credential store.
-- Env vars override stored credentials.
-- Insecure fallback storage is opt-in only.
+- PATs are stored per host in the OS credential store
+- env vars override stored credentials
+- insecure fallback storage is opt-in only
 
-### config
+### Config
 
-- Store non-secret settings in a per-user config file.
-- Config never stores behavioral search defaults that would silently enable enhanced behavior.
+- store non-secret settings in a per-user config file
+- config never stores behavioral search defaults that would silently enable enhanced behavior
 
-### cache / index
+### Cache / Index
 
-- v1 uses per-command ephemeral in-memory state only.
-- No persistent repo metadata DB survives across commands.
-- No persistent discovery index in default behavior.
+- v1 uses per-command ephemeral in-memory state only
+- no persistent repo metadata DB survives across commands
+- no persistent discovery index in default behavior
 
-## scoring model
+## Scoring Model
 
-### normalization
+### Normalization
 
 Each score component is normalized to a stable `0..1` range before ranking.
 
-### component use
+### Component Use
 
 - `native` rank: preserve retrieval order
 - `query` rank: query score only
 - `activity` rank: activity score only
 - `quality` rank: quality score only
-- `blended` rank: weighted average of query, activity, quality
+- `blended` rank: weighted average of query, activity, and quality
 
-### explainability
+### Explainability
 
 Every enhanced score must be explainable from explicit inputs and repo facts.
-There is no learned personalization and no history-based bias.
 
-## progress and concurrency
+- no learned personalization
+- no history-based bias
 
-### progress
+## Progress And Concurrency
 
-- Human progress output uses `stderr`.
-- Structured stdout remains clean.
-- Progress is phase-based:
+### Progress
+
+- human progress output uses `stderr`
+- structured stdout remains clean
+- progress is phase-based:
   - searching
   - collecting
   - enriching metadata
   - enriching README
   - ranking
 
-### concurrency
+### Concurrency
 
-- Official GitHub guidance favors serial requests to avoid secondary rate limits.
-- Default concurrency is `1`.
-- `--concurrency` is advanced and explicit.
-- On secondary-rate-limit responses, the client must:
+- official GitHub guidance favors serial requests to avoid secondary rate limits
+- default concurrency is `1`
+- `--concurrency` is advanced and explicit
+- on secondary-rate-limit responses, the client must:
   - respect `retry-after`
   - respect `x-ratelimit-reset`
   - otherwise back off exponentially with jitter
 
-## host handling
+## Host Handling
 
-### normalization
+### Normalization
 
 Accept:
 
@@ -126,38 +135,38 @@ Defaults:
 - GitHub.com REST base -> `https://api.github.com`
 - GHES REST base -> `https://<host>/api/v3`
 
-### support promise
+### Support Promise
 
-- GitHub.com is the primary target.
-- Custom hosts are best-effort in v1.
-- The CLI should always send a stable API version header where supported.
+- GitHub.com is the primary target
+- custom hosts are best-effort in v1
+- the CLI should always send a stable API version header where supported
 
-## validation and conflict policy
+## Validation And Conflict Policy
 
-### first-error policy
+### First-Error Policy
 
-- Validate flags before any network work where possible.
-- Return the first clear error only.
+- validate flags before any network work where possible
+- return the first clear error only
 
-### examples of enforced conflicts
+### Examples Of Enforced Conflicts
 
 - raw qualifier plus overlapping structured flag
 - `--created-after` plus `--created-within`
 - `--weight-query` without `--rank blended`
-- `--concurrency` without explicit discovery/enrichment mode
+- `--concurrency` without explicit discovery or enrichment mode
 
-## output contracts
+## Output Contracts
 
-### success
+### Success
 
 - `pretty` is human-first and concise
 - `json` is stable and structured
 - `compact` is minified JSON
 - `csv` is flat export-friendly output
 
-### errors
+### Errors
 
-- stderr only
+- `stderr` only
 - symbolic error code prefix
 - plain text message
 - shell exit code `1`

@@ -16,8 +16,8 @@ Avoid broad speculative feature expansion that weakens the core contract around 
 
 Read these first:
 
-- [SPEC.md](SPEC.md)
-- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [Specification](docs/project/specification.mdx)
+- [Architecture](docs/project/architecture.mdx)
 - [README.md](README.md)
 
 The main product rule is simple: plain search must stay close to native GitHub repository search. Enhanced behavior must remain explicit.

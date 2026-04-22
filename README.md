@@ -385,8 +385,8 @@ for the fuller install matrix and release operations, use the [installation guid
 
 contributions are welcome. please open an issue or pull request on [github](https://github.com/Microck/gitquarry). for behavior changes, start by reading:
 
-- `SPEC.md`
-- `ARCHITECTURE.md`
+- [specification](./docs/project/specification.mdx)
+- [architecture](./docs/project/architecture.mdx)
 
 if you change the command surface or user-visible behavior:
 

@@ -22,3 +22,9 @@ dist/
 coverage/
 *.log
 result
+
+# local planning and contract drafts should not live at repo root
+/PLAN.md
+/RESEARCH.md
+/SPEC.md
+/ARCHITECTURE.md

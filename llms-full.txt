@@ -46,7 +46,9 @@
 
 ## Project Docs
 
-- [Architecture And Spec](https://gitquarry.micr.dev/project/architecture-and-spec): Mintlify summary of the two top-level contract files.
+- [Architecture And Spec](https://gitquarry.micr.dev/project/architecture-and-spec): Operator overview of the contract and system shape, with links to the full contract pages.
+- [Specification](https://gitquarry.micr.dev/project/specification): Full product contract for command surface, validation, ranking, output, and error semantics.
+- [Architecture](https://gitquarry.micr.dev/project/architecture): Full request pipeline, subsystem layout, storage model, retries, and output contract.
 - [Development](https://gitquarry.micr.dev/project/development): Build, test, CLI-help smoke, docs preview, and workflow overview.
 - [Testing And Release](https://gitquarry.micr.dev/project/testing-and-release): Local verification, CI matrix, live smoke, and release workflow roles.
 - [Packaging And Release](https://gitquarry.micr.dev/project/packaging-and-release): How release surfaces relate and what GitHub Releases remain canonical for.
@@ -74,8 +76,8 @@
 ## Source Of Truth Files
 
 - [README](https://github.com/Microck/gitquarry/blob/main/README.md): Human-facing repository overview and installation summary.
-- [SPEC.md](https://github.com/Microck/gitquarry/blob/main/SPEC.md): Product contract, command surface, validation policy, ranking, output, and error requirements.
-- [ARCHITECTURE.md](https://github.com/Microck/gitquarry/blob/main/ARCHITECTURE.md): Request pipeline, subsystem layout, storage model, scoring model, progress, host handling, and output contract.
+- [docs/project/specification.mdx](https://github.com/Microck/gitquarry/blob/main/docs/project/specification.mdx): Product contract, command surface, validation policy, ranking, output, and error requirements.
+- [docs/project/architecture.mdx](https://github.com/Microck/gitquarry/blob/main/docs/project/architecture.mdx): Request pipeline, subsystem layout, storage model, scoring model, progress, host handling, and output contract.
 - [CHANGELOG.md](https://github.com/Microck/gitquarry/blob/main/CHANGELOG.md): User-facing release notes.
 - [CONTRIBUTING.md](https://github.com/Microck/gitquarry/blob/main/CONTRIBUTING.md): Contribution entry point.
 - [SECURITY.md](https://github.com/Microck/gitquarry/blob/main/SECURITY.md): Security contact and policy surface.

@@ -115,6 +115,8 @@
             "group": "Core Project Docs",
             "pages": [
               "project/architecture-and-spec",
+              "project/specification",
+              "project/architecture",
               "project/testing-and-release",
               "project/packaging-and-release",
               "project/security-and-auth-safety"

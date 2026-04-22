@@ -39,12 +39,12 @@
 - [Output Schemas](https://gitquarry.micr.dev/reference/output-schemas): Exact JSON and CSV shapes for `search` and `inspect`.
 - [Error Reference](https://gitquarry.micr.dev/reference/error-reference): Stable error codes and typical fixes.
 - [Search Behavior](https://gitquarry.micr.dev/reference/search-behavior): Behavioral contract for native vs discover semantics.
-- [SPEC.md](https://github.com/Microck/gitquarry/blob/main/SPEC.md): Source-of-truth product contract.
-- [ARCHITECTURE.md](https://github.com/Microck/gitquarry/blob/main/ARCHITECTURE.md): System-level architecture and request-pipeline model.
+- [Specification](https://gitquarry.micr.dev/project/specification): Full product contract for command surface, validation, ranking, output, and error semantics.
+- [Architecture](https://gitquarry.micr.dev/project/architecture): Full system architecture, request pipeline, storage model, retries, and output contract.
 
 ## Project
 
-- [Architecture And Spec](https://gitquarry.micr.dev/project/architecture-and-spec): Short operator version of the repo contract and system structure.
+- [Architecture And Spec](https://gitquarry.micr.dev/project/architecture-and-spec): Operator overview that links to the full specification and architecture pages.
 - [Development](https://gitquarry.micr.dev/project/development): Local build, test, and docs workflows.
 - [Testing And Release](https://gitquarry.micr.dev/project/testing-and-release): CI, live smoke, release verification, and local checks.
 - [Packaging And Release](https://gitquarry.micr.dev/project/packaging-and-release): How GitHub Releases, npm, Homebrew, Scoop, AUR, and Nix fit together.
