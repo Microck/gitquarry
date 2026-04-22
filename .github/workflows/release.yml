@@ -105,7 +105,7 @@ jobs:
             binary: gitquarry
             archive: tar.gz
             linker: aarch64-linux-gnu-gcc
-          - os: macos-13
+          - os: macos-latest
             target: x86_64-apple-darwin
             binary: gitquarry
             archive: tar.gz

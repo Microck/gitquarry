@@ -6,6 +6,10 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+## [0.1.3]
+
+- Move the Intel macOS release build onto `macos-latest` to avoid blocked `macos-13` runner capacity
+
 ## [0.1.2]
 
 - Add package-manager-friendly release assets with explicit target triples and a source tarball

@@ -2,7 +2,7 @@
 
 rustPlatform.buildRustPackage {
   pname = "gitquarry";
-  version = "0.1.2";
+  version = "0.1.3";
 
   src = lib.cleanSource ../.;
   cargoLock.lockFile = ../Cargo.lock;
