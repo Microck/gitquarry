@@ -57,9 +57,10 @@ jobs:
 
   publish-crate:
     name: Publish crate
-    if: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
     needs: verify-release
     runs-on: ubuntu-latest
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -70,8 +71,22 @@ jobs:
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
 
+      - name: Check publish token availability
+        id: token-check
+        run: |
+          if [ -n "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Explain skipped crate publish
+        if: steps.token-check.outputs.has_token != 'true'
+        run: echo "CARGO_REGISTRY_TOKEN is not configured; skipping crates.io publish."
+
       - name: Publish to crates.io
-        run: cargo publish --locked --token "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+        if: steps.token-check.outputs.has_token == 'true'
+        run: cargo publish --locked --token "${CARGO_REGISTRY_TOKEN}"
 
   build-release:
     name: Build release (${{ matrix.label }})

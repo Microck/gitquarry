@@ -5,36 +5,47 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  LIVE_TOKEN: ${{ secrets.GITQUARRY_TOKEN }}
 
 permissions:
   contents: read
 
 jobs:
-  missing-token:
-    if: ${{ env.LIVE_TOKEN == '' }}
+  live-e2e:
     runs-on: ubuntu-latest
+    env:
+      LIVE_TOKEN: ${{ secrets.GITQUARRY_TOKEN }}
     steps:
+      - name: Check token availability
+        id: token-check
+        run: |
+          if [ -n "${LIVE_TOKEN:-}" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Explain skipped run
+        if: steps.token-check.outputs.has_token != 'true'
         run: echo "GITQUARRY_TOKEN secret is not configured; skipping live smoke."
 
-  live-e2e:
-    if: ${{ env.LIVE_TOKEN != '' }}
-    runs-on: ubuntu-latest
-    steps:
       - name: Checkout
+        if: steps.token-check.outputs.has_token == 'true'
         uses: actions/checkout@v4
 
       - name: Install Rust
+        if: steps.token-check.outputs.has_token == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust artifacts
+        if: steps.token-check.outputs.has_token == 'true'
         uses: Swatinem/rust-cache@v2
 
       - name: Build binary
+        if: steps.token-check.outputs.has_token == 'true'
         run: cargo build --locked
 
       - name: Run live smoke checks
+        if: steps.token-check.outputs.has_token == 'true'
         run: |
           set -euo pipefail
           TMPDIR="$(mktemp -d)"
