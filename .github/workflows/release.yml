@@ -37,6 +37,12 @@ jobs:
             exit 1
           fi
 
+          NPM_VERSION="$(jq -r '.version' npm/package.json)"
+          if [ "${NPM_VERSION}" != "${PACKAGE_VERSION}" ]; then
+            echo "npm/package.json version ${NPM_VERSION} does not match Cargo version ${PACKAGE_VERSION}" >&2
+            exit 1
+          fi
+
       - name: Format
         run: cargo fmt --all -- --check
 
@@ -54,6 +60,14 @@ jobs:
           cargo run --locked -- --help
           cargo run --locked -- search --help
           cargo run --locked -- auth login --help
+
+      - name: Setup Node
+        uses: actions/setup-node@v6.0.0
+        with:
+          node-version: 24
+
+      - name: Validate npm wrapper package
+        run: npm pack --dry-run ./npm
 
   publish-crate:
     name: Publish crate
@@ -143,31 +157,81 @@ jobs:
       - name: Compute asset name
         id: asset
         shell: bash
-        run: echo "name=gitquarry-${GITHUB_REF_NAME}-${{ matrix.target }}.${{ matrix.archive }}" >> "$GITHUB_OUTPUT"
+        run: |
+          base="gitquarry-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          echo "base=${base}" >> "$GITHUB_OUTPUT"
+          echo "archive=${base}.${{ matrix.archive }}" >> "$GITHUB_OUTPUT"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            echo "binary=${base}.exe" >> "$GITHUB_OUTPUT"
+          else
+            echo "binary=${base}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Package artifact (Unix)
         if: runner.os != 'Windows'
         run: |
           mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} "${{ steps.asset.outputs.binary }}"
           cp target/${{ matrix.target }}/release/${{ matrix.binary }} dist/gitquarry
           cp README.md LICENSE dist/
-          tar -C dist -czf "${{ steps.asset.outputs.name }}" .
+          tar -C dist -czf "${{ steps.asset.outputs.archive }}" .
 
       - name: Package artifact (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.binary }}" "${{ steps.asset.outputs.binary }}"
           Copy-Item "target/${{ matrix.target }}/release/${{ matrix.binary }}" "dist/gitquarry.exe"
           Copy-Item "README.md" "dist/README.md"
           Copy-Item "LICENSE" "dist/LICENSE"
-          Compress-Archive -Path "dist/*" -DestinationPath "${{ steps.asset.outputs.name }}" -Force
+          Compress-Archive -Path "dist/*" -DestinationPath "${{ steps.asset.outputs.archive }}" -Force
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v7.0.1
         with:
           name: ${{ matrix.target }}
-          path: ${{ steps.asset.outputs.name }}
+          path: |
+            ${{ steps.asset.outputs.archive }}
+            ${{ steps.asset.outputs.binary }}
+
+  publish-npm:
+    name: Publish npm package
+    needs:
+      - verify-release
+      - publish-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v6.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Check npm token availability
+        id: token-check
+        run: |
+          if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Explain skipped npm publish
+        if: steps.token-check.outputs.has_token != 'true'
+        run: echo "NPM_TOKEN is not configured; skipping npm publish."
+
+      - name: Publish to npm
+        if: steps.token-check.outputs.has_token == 'true'
+        run: npm publish ./npm --access public --provenance
 
   publish-release:
     name: Publish release

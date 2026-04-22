@@ -4,7 +4,7 @@ Use this when cutting a new `gitquarry` release.
 
 ## Goal
 
-Ship one version across GitHub release assets, downstream packaging repos, public documentation, and crates.io when registry credentials are configured.
+Ship one version across GitHub release assets, npm, downstream packaging repos, the AUR, public documentation, and crates.io when registry credentials are configured.
 
 ## Preflight
 
@@ -18,6 +18,9 @@ Ship one version across GitHub release assets, downstream packaging repos, publi
 6. Be ready to update downstream packaging repos after the GitHub release completes:
    - `Microck/homebrew-gitquarry`
    - `Microck/scoop-gitquarry`
+7. Confirm npm publish access if you want the release workflow to publish the Node wrapper automatically:
+   - `NPM_TOKEN` GitHub Actions secret
+8. Confirm AUR SSH access for `aur@aur.archlinux.org` if you plan to publish the Arch package immediately after the release.
 
 ## Update release metadata
 
@@ -38,6 +41,7 @@ cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --locked
 cargo package --locked
+npm pack --dry-run ./npm
 cargo publish --locked --dry-run
 ```
 
@@ -66,9 +70,11 @@ git push origin vX.Y.Z
   - `x86_64-apple-darwin`
   - `aarch64-apple-darwin`
   - `x86_64-pc-windows-msvc`
+- uploads both packaged archives and raw per-target binaries for wrapper installs
 - creates a source tarball for packaging workflows
 - generates `SHA256SUMS`
 - creates the GitHub release and uploads the packaged artifacts
+- publishes the npm wrapper when `NPM_TOKEN` is configured
 
 ## Post-tag checks
 
@@ -96,10 +102,16 @@ scoop install gitquarry
    - update `packaging/homebrew/gitquarry.rb`
    - update `packaging/scoop/gitquarry.json`
    - update `packaging/aur/PKGBUILD` and `packaging/aur/.SRCINFO`
-5. crates.io
+5. npm
+   - `npm view gitquarry version dist.tarball`
+   - confirm the published version matches `X.Y.Z`
+6. AUR
+   - push the updated `PKGBUILD` and `.SRCINFO` to `ssh://aur@aur.archlinux.org/gitquarry.git`
+   - verify `https://aur.archlinux.org/packages/gitquarry/` reflects the new version
+7. crates.io
    - `cargo search gitquarry --limit 1`
    - confirm the published version matches `X.Y.Z` when `CARGO_REGISTRY_TOKEN` was configured for the release
-6. Docs
+8. Docs
    - confirm Mintlify is still pointing at the expected branch and that install instructions still match the published release
 
 ## Release channel notes
@@ -115,6 +127,14 @@ This lives in `Microck/homebrew-gitquarry` and should always track the latest pu
 ### Scoop
 
 This lives in `Microck/scoop-gitquarry` and should always track the latest published Windows release asset and hash.
+
+### npm
+
+This is the `gitquarry` package on npm. It is a Node wrapper that downloads the matching raw binary from GitHub Releases on install, which also makes the package usable through `pnpm` and `bun`.
+
+### AUR
+
+The AUR package lives at `gitquarry` and is pushed over SSH to `aur@aur.archlinux.org`. It builds from the GitHub release source tarball instead of shipping a prebuilt binary.
 
 ### Repo-native packaging files
 
@@ -165,12 +185,16 @@ cargo publish --locked
 
 1. Download `SHA256SUMS` from the GitHub release.
 2. Update `Microck/homebrew-gitquarry` and `Microck/scoop-gitquarry` to the matching version and hashes.
-3. Update the repo-native files under `packaging/`.
-4. Verify docs still point at live channels only.
+3. Publish the matching npm wrapper version if it did not publish automatically.
+4. Push the matching `PKGBUILD` and `.SRCINFO` to the AUR repo.
+5. Update the repo-native files under `packaging/`.
+6. Verify docs still point at live channels only.
 
 ## Quick checks
 
 - `gh release view vX.Y.Z -R Microck/gitquarry`
 - `gh run list --workflow Release -R Microck/gitquarry --limit 5`
 - `gh release download vX.Y.Z -R Microck/gitquarry -p SHA256SUMS`
+- `npm view gitquarry version dist.tarball`
+- `curl -L -s 'https://aur.archlinux.org/rpc/?v=5&type=search&arg=gitquarry'`
 - `cargo search gitquarry --limit 1`

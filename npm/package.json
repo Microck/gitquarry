@@ -1,0 +1,39 @@
+{
+  "name": "gitquarry",
+  "version": "0.1.3",
+  "description": "Node wrapper that installs the native gitquarry CLI binary",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Microck/gitquarry.git"
+  },
+  "homepage": "https://github.com/Microck/gitquarry#readme",
+  "bugs": {
+    "url": "https://github.com/Microck/gitquarry/issues"
+  },
+  "bin": {
+    "gitquarry": "bin/gitquarry.cjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node lib/install.cjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "github",
+    "search",
+    "cli",
+    "repositories",
+    "rust"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "preferGlobal": true
+}

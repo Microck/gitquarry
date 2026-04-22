@@ -1,11 +1,19 @@
 ---
 title: "Installation"
-description: "Install gitquarry from Homebrew, Scoop, GitHub Releases, Nix, or source."
+description: "Install gitquarry with npm, pnpm, Bun, Homebrew, Scoop, AUR, GitHub Releases, Nix, or from source."
 ---
 
 # Installation
 
-Gitquarry is distributed through tagged GitHub release binaries, a Homebrew tap, a Scoop bucket, and the repository's Nix flake. AUR packaging files are tracked in-repo, but there is not a published AUR package yet.
+Gitquarry is distributed through a published npm wrapper package, tagged GitHub release binaries, a Homebrew tap, a Scoop bucket, the AUR, and the repository's Nix flake.
+
+## Install With npm, pnpm, Or Bun
+
+```bash
+npm install -g gitquarry
+pnpm add -g gitquarry
+bun add -g gitquarry
+```
 
 ## Install With Homebrew
 
@@ -41,9 +49,13 @@ Pick the archive that matches your platform:
 nix run github:Microck/gitquarry
 ```
 
-## Arch And AUR Packaging
+## Install From AUR
 
-The tracked Arch packaging files live under [`packaging/aur/`](../../packaging/aur). They are ready for local `makepkg` use or future AUR publication, but there is not yet a public AUR package name to install from directly.
+```bash
+yay -S gitquarry
+```
+
+The tracked Arch packaging files remain in [`packaging/aur/`](../../packaging/aur) and are the same metadata pushed to AUR.
 
 ## Install From A Checkout
 
@@ -66,7 +78,7 @@ cargo run -- search "rust cli"
 
 ## Release and Publish Flow
 
-Tagged releases verify the package, attach per-target platform archives plus a source tarball to the GitHub release, and provide the versioned artifacts the downstream Homebrew and Scoop packaging repos should track.
+Tagged releases verify the package, attach per-target platform archives plus raw binaries and a source tarball to the GitHub release, and provide the versioned artifacts the downstream Homebrew, Scoop, npm, and AUR packaging surfaces should track.
 
 ## Verify
 

@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="https://github.com/Microck/gitquarry/releases"><img src="https://img.shields.io/github/v/release/Microck/gitquarry?display_name=tag&style=flat-square&label=release&color=000000" alt="release badge"></a>
-  <a href="https://github.com/Microck/gitquarry/releases"><img src="https://img.shields.io/github/downloads/Microck/gitquarry/total?style=flat-square&label=downloads&color=000000" alt="downloads badge"></a>
+  <a href="https://www.npmjs.com/package/gitquarry"><img src="https://img.shields.io/npm/dt/gitquarry?style=flat-square&label=downloads&color=000000" alt="npm downloads"></a>
   <a href="https://github.com/Microck/gitquarry/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Microck/gitquarry/ci.yml?branch=main&style=flat-square&label=ci&color=000000" alt="ci badge"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-mit-000000?style=flat-square" alt="license badge"></a>
 </p>
@@ -20,7 +20,7 @@
 
 the main setup path is `gitquarry auth login`. on a real terminal it gives you a direct way to save a GitHub personal access token, validate it, and then use the same credential flow for normal search commands, repository inspection, and scripted JSON output. host-specific environment overrides and an insecure local fallback path also exist when you need them, but they stay explicit.
 
-[documentation](./docs/index.mdx) | [releases](https://github.com/Microck/gitquarry/releases) | [github](https://github.com/Microck/gitquarry)
+[documentation](./docs/index.mdx) | [npm](https://www.npmjs.com/package/gitquarry) | [github](https://github.com/Microck/gitquarry)
 
 ## why
 
@@ -35,36 +35,27 @@ if you already use GitHub repository search and want a CLI that stays honest abo
 
 ## install
 
-homebrew:
-
 ```bash
+npm install -g gitquarry
+pnpm add -g gitquarry
+bun add -g gitquarry
+
+# homebrew
 brew tap Microck/gitquarry
 brew install gitquarry
-```
 
-scoop:
-
-```powershell
+# scoop
 scoop bucket add gitquarry https://github.com/Microck/scoop-gitquarry
 scoop install gitquarry
-```
 
-github releases:
+# AUR (arch linux)
+yay -S gitquarry
 
-- [releases page](https://github.com/Microck/gitquarry/releases)
-- `gitquarry-vX.Y.Z-x86_64-unknown-linux-gnu.tar.gz`
-- `gitquarry-vX.Y.Z-aarch64-unknown-linux-gnu.tar.gz`
-- `gitquarry-vX.Y.Z-x86_64-apple-darwin.tar.gz`
-- `gitquarry-vX.Y.Z-aarch64-apple-darwin.tar.gz`
-- `gitquarry-vX.Y.Z-x86_64-pc-windows-msvc.zip`
-
-nix:
-
-```bash
+# nix
 nix run github:Microck/gitquarry
 ```
 
-arch packaging files are tracked in [`packaging/aur/`](./packaging/aur) for AUR submission or local `makepkg` flows. there is not a published AUR package yet.
+direct platform archives and checksums are also published on the [releases page](https://github.com/Microck/gitquarry/releases).
 
 if you want to install from a local checkout instead:
 

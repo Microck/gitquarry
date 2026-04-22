@@ -3,6 +3,7 @@ target/
 
 # local docs and package-manager artifacts
 node_modules/
+npm/vendor/
 .mint/
 docs/.next/
 
