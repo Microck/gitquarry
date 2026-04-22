@@ -27,12 +27,12 @@
           "href": "https://github.com/Microck/gitquarry"
         },
         {
-          "anchor": "crates.io",
-          "href": "https://crates.io/crates/gitquarry"
+          "anchor": "Releases",
+          "href": "https://github.com/Microck/gitquarry/releases"
         },
         {
-          "anchor": "docs.rs",
-          "href": "https://docs.rs/gitquarry"
+          "anchor": "Changelog",
+          "href": "https://github.com/Microck/gitquarry/blob/main/CHANGELOG.md"
         }
       ]
     },
@@ -96,7 +96,8 @@
             "group": "Development",
             "pages": [
               "project/development",
-              "project/contributing"
+              "project/contributing",
+              "release-runbook"
             ]
           }
         ]

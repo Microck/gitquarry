@@ -30,7 +30,7 @@ jobs:
 
       - name: Checkout
         if: steps.token-check.outputs.has_token == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
 
       - name: Install Rust
         if: steps.token-check.outputs.has_token == 'true'

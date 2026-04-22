@@ -1,11 +1,23 @@
 ---
 title: "Installation"
-description: "Install gitquarry from crates.io, from release artifacts, or from source."
+description: "Install gitquarry from GitHub Releases, from crates.io when published, or from source."
 ---
 
 # Installation
 
-Gitquarry is distributed as a Rust crate and as tagged release binaries.
+Gitquarry is distributed through tagged GitHub release binaries and, when the registry token is configured, through crates.io.
+
+## Install From GitHub Releases
+
+Tagged releases publish platform archives on GitHub Releases:
+
+`https://github.com/Microck/gitquarry/releases`
+
+Pick the archive that matches your platform:
+
+- `gitquarry-linux.tar.gz`
+- `gitquarry-macos.tar.gz`
+- `gitquarry-windows.zip`
 
 ## Install From crates.io
 
@@ -13,15 +25,7 @@ Gitquarry is distributed as a Rust crate and as tagged release binaries.
 cargo install gitquarry
 ```
 
-## Install From GitHub Releases
-
-Tagged releases publish platform archives on GitHub Releases.
-
-Pick the archive that matches your platform from:
-
-- `gitquarry-linux.tar.gz`
-- `gitquarry-macos.tar.gz`
-- `gitquarry-windows.zip`
+This path becomes available once the release workflow has a configured `CARGO_REGISTRY_TOKEN`.
 
 ## Install From a Checkout
 
@@ -44,7 +48,7 @@ cargo run -- search "rust cli"
 
 ## Release and Publish Flow
 
-Tagged releases verify the package, publish the crate when the registry token is configured, and attach platform archives to the GitHub release.
+Tagged releases verify the package, attach platform archives to the GitHub release, and publish the crate when the registry token is configured.
 
 ## Verify
 

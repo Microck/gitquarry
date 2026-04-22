@@ -6,6 +6,11 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+## [0.1.1]
+
+- Fix the tagged release workflow so release notes generation can read `CHANGELOG.md`
+- Update GitHub Actions workflow dependencies to Node 24 compatible releases
+
 ## [0.1.0]
 
 - Initial public-repo preparation

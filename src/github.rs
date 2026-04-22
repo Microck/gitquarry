@@ -39,7 +39,7 @@ impl GitHubClient {
             "X-GitHub-Api-Version",
             HeaderValue::from_static(API_VERSION),
         );
-        headers.insert(USER_AGENT, HeaderValue::from_static("gitquarry/0.1.0"));
+        headers.insert(USER_AGENT, HeaderValue::from_static("gitquarry/0.1.1"));
         headers.insert(
             AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {}", token.into())).map_err(|err| {

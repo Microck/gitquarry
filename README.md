@@ -13,8 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/Microck/gitquarry/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Microck/gitquarry/ci.yml?branch=main&label=ci"></a>
-  <a href="https://crates.io/crates/gitquarry"><img alt="crates.io" src="https://img.shields.io/crates/v/gitquarry"></a>
-  <a href="https://docs.rs/gitquarry"><img alt="docs.rs" src="https://img.shields.io/docsrs/gitquarry"></a>
+  <a href="https://github.com/Microck/gitquarry/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/Microck/gitquarry?display_name=tag"></a>
   <a href="https://github.com/Microck/gitquarry/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/crates/l/gitquarry"></a>
 </p>
 
@@ -63,19 +62,18 @@ gitquarry inspect rust-lang/rust --format json
 
 ## Installation
 
-Once the crate is published, install it directly from crates.io:
+The primary public install path right now is GitHub Releases:
 
-```bash
-cargo install gitquarry
-```
-
-Release binaries are also produced for tagged releases on GitHub:
-
+- Releases page: `https://github.com/Microck/gitquarry/releases`
 - Linux: `gitquarry-linux.tar.gz`
 - macOS: `gitquarry-macos.tar.gz`
 - Windows: `gitquarry-windows.zip`
 
-Download the matching archive from the GitHub Releases page for your platform.
+Registry install is wired into the release workflow and becomes available once `CARGO_REGISTRY_TOKEN` is configured:
+
+```bash
+cargo install gitquarry
+```
 
 If you are working from a local checkout, source install remains available:
 

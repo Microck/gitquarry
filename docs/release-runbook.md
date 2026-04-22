@@ -4,7 +4,7 @@ Use this when cutting a new `gitquarry` release.
 
 ## Goal
 
-Ship one version across the Rust crate, GitHub release assets, and public documentation.
+Ship one version across GitHub release assets, public documentation, and crates.io when registry credentials are configured.
 
 ## Preflight
 
@@ -21,9 +21,10 @@ Ship one version across the Rust crate, GitHub release assets, and public docume
 1. Bump the release version in:
    - `Cargo.toml`
    - `Cargo.lock`
-2. Move the notes from `## Unreleased` into a release-specific section if you want versioned history, or make sure the unreleased notes are clean and ready to become the release summary.
-3. Check for hardcoded version references in docs or examples.
-4. Commit the release metadata update on `main`.
+2. Prefer moving the notes from `## Unreleased` into a release-specific `## [X.Y.Z]` section for versioned history.
+3. If you intentionally leave the notes under `## Unreleased`, the workflow will use that section as a fallback release summary.
+4. Check for hardcoded version references in docs or examples.
+5. Commit the release metadata update on `main`.
 
 ## Local verification before tagging
 
@@ -74,7 +75,7 @@ Verify all public release surfaces after the workflows finish:
    - `gh run list --workflow Release -R Microck/gitquarry --limit 5`
 3. crates.io
    - `cargo search gitquarry --limit 1`
-   - confirm the published version matches `X.Y.Z`
+   - confirm the published version matches `X.Y.Z` when `CARGO_REGISTRY_TOKEN` was configured for the release
 4. Docs
    - confirm Mintlify is still pointing at the expected branch and that install instructions still match the published release
 
@@ -86,7 +87,7 @@ This is the canonical binary distribution channel for platform archives.
 
 ### crates.io
 
-This is the canonical Rust package distribution channel. `cargo install gitquarry` depends on the crates.io version being in sync with the GitHub tag.
+This is the Rust package distribution channel when `CARGO_REGISTRY_TOKEN` is configured. `cargo install gitquarry` depends on the crates.io version being in sync with the GitHub tag.
 
 ### Mintlify
 
