@@ -12,6 +12,24 @@
     "dark": "/images/gitquarry-logo-dark.svg"
   },
   "favicon": "/images/favicon.png",
+  "fonts": {
+    "family": "Mona Sans",
+    "source": "/fonts/mona-sans-var.woff2",
+    "format": "woff2",
+    "weight": 450,
+    "heading": {
+      "family": "Monaspace Neon",
+      "source": "/fonts/monaspace-neon-var.woff2",
+      "format": "woff2",
+      "weight": 650
+    },
+    "body": {
+      "family": "Mona Sans",
+      "source": "/fonts/mona-sans-var.woff2",
+      "format": "woff2",
+      "weight": 450
+    }
+  },
   "seo": {
     "metatags": {
       "canonical": "https://gitquarry.micr.dev"
@@ -127,6 +145,7 @@
             "group": "Development",
             "pages": [
               "project/development",
+              "project/benchmark-study",
               "project/contributing",
               "release-runbook"
             ]

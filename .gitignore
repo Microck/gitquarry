@@ -22,6 +22,8 @@ dist/
 coverage/
 *.log
 result
+__pycache__/
+*.pyc
 
 # local planning and contract drafts should not live at repo root
 /PLAN.md

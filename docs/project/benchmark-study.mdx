@@ -1,0 +1,193 @@
+---
+title: "Benchmark Study"
+description: "How to run and interpret a thorough live benchmark study for gitquarry search behavior."
+---
+
+# Benchmark Study
+
+This project includes a reproducible live-study harness for comparing `gitquarry search` behavior across:
+
+- native and discover retrieval
+- quick, balanced, and deep discover depth
+- native, query, activity, quality, and blended ranking
+- README enrichment
+- weighted blended variants
+- language and recency filter slices
+
+## Benchmark Queries
+
+The default study uses two intentionally different queries:
+
+- `api gateway`
+- `terminal ui`
+
+Why these two:
+
+- `api gateway` is noisy, infra-heavy, and useful for comparing `quality` versus `activity`.
+- `terminal ui` is lexically cleaner and useful for comparing native search against discover and README-aware ranking.
+
+Together they stress both broad semantic expansion and tighter lexical matching.
+
+## Study Runner
+
+The harness lives at:
+
+- [`scripts/benchmark-study.py`](../../scripts/benchmark-study.py)
+- [`scripts/render-benchmark-charts.py`](../../scripts/render-benchmark-charts.py)
+
+It writes raw outputs and derived analysis under:
+
+- `target/benchmark-study/`
+
+## What The Study Captures
+
+For every run, the harness records:
+
+- command scenario name and label
+- query
+- duration in milliseconds
+- total result count and returned result count
+- compiled query
+- median stars and forks in the emitted top window
+- median updated age in days
+- language diversity in the emitted top window
+- README coverage
+- explain coverage
+- per-repository scores and matched surfaces when available
+
+It also computes scenario-to-baseline comparisons against `native-best-match` for each query:
+
+- top-k overlap
+- top-k Jaccard similarity
+- number of novel results
+- average absolute rank shift among shared repositories
+
+## Run It
+
+Build the binary first if needed:
+
+```bash
+cargo build
+```
+
+Then run the study:
+
+```bash
+python3 scripts/benchmark-study.py
+```
+
+If you prefer an explicit output directory:
+
+```bash
+python3 scripts/benchmark-study.py --output-dir target/benchmark-study
+```
+
+If `GITQUARRY_TOKEN` is not already set, the script will try GitHub CLI auth before failing.
+
+To refresh the visual artifacts after the study outputs are present:
+
+```bash
+python3 scripts/render-benchmark-charts.py
+```
+
+## Output Files
+
+After a run, the key artifacts are:
+
+- `target/benchmark-study/report.md`
+- `target/benchmark-study/run-summaries.csv`
+- `target/benchmark-study/repo-rows.csv`
+- `target/benchmark-study/comparisons.csv`
+- `target/benchmark-study/raw/<query>/<scenario>.json`
+- `docs/images/benchmark-study/*.svg`
+
+## How To Read The Results
+
+Use the results in layers:
+
+1. Start with `report.md` for the headline differences.
+2. Use `run-summaries.csv` to compare scenario-level behavior such as latency, median stars, and readme coverage.
+3. Use `comparisons.csv` to quantify how far each scenario moved from `native-best-match`.
+4. Use `repo-rows.csv` to inspect exact rank positions, score components, and matched surfaces.
+
+## Interpretation Heuristics
+
+These are the most useful contrasts:
+
+- `native-best-match` vs `discover-balanced-blended`
+  - baseline product contrast
+- `discover-balanced-query` vs `discover-balanced-query-readme`
+  - README enrichment impact
+- `discover-quick-*` vs `discover-deep-*`
+  - recall-vs-cost tradeoff
+- `discover-balanced-blended` vs weighted blended variants
+  - score sensitivity to explicit user preferences
+- `native-updated-1y` vs `discover-balanced-activity-updated-1y`
+  - how recency interacts with retrieval and ranking
+
+## Visual Snapshot
+
+### Latency Profile
+
+![Benchmark latency profile](/images/benchmark-study/latency-profile.svg)
+
+This chart makes the cost ladder obvious:
+
+- native remains effectively instant
+- quick discover is the first meaningful latency jump
+- balanced discover is the practical middle ground
+- deep discover is materially more expensive
+- README enrichment adds a visible extra cost on top of balanced discover
+
+### Churn Versus Native
+
+![Scenario churn versus the native baseline](/images/benchmark-study/baseline-churn.svg)
+
+This chart is the main compare-and-contrast view for option selection:
+
+- `quality` stays closer to native than `query` or plain `blended`
+- `quality-heavy` gives the strongest non-native compromise on `api gateway`
+- Rust and recency slices are intentionally more selective and drift further from the default baseline
+
+### Persistent Repository Leaders
+
+![Most persistent repositories across the study](/images/benchmark-study/persistence-leaders.svg)
+
+This chart shows which repositories keep surviving rank, depth, README, and filter changes. Those are the best candidates for examples, screenshots, and explanation in follow-up writeups.
+
+## Current Snapshot
+
+This section summarizes the completed live run executed on `2026-04-22`.
+
+High-level operational findings:
+
+- Native runs stayed sub-second for both benchmark queries, with the slowest native baseline still around `~1.1s`.
+- Quick discover runs landed around `16-19s`.
+- Balanced discover runs landed around `26-31s`.
+- Deep discover runs landed around `52-62s`.
+- Balanced discover plus README enrichment added roughly `~3-5s` on top of balanced discover.
+
+Behavioral findings for `api gateway`:
+
+- `discover-quick-native`, `discover-balanced-native`, `discover-deep-native`, and `native-updated-1y` all fully preserved the `native-best-match` top 10.
+- `discover-balanced-quality` and `discover-deep-quality` stayed meaningfully closer to the native baseline than `query` or plain `blended`.
+- `discover-balanced-blended-quality-heavy` was the strongest non-native compromise, with `8/10` overlap and a `0.6667` Jaccard score against `native-best-match`.
+- The most persistent repositories across scenarios were `apache/apisix`, `kgateway-dev/kgateway`, `kubernetes-sigs/gateway-api`, and `spring-cloud/spring-cloud-gateway`.
+
+Behavioral findings for `terminal ui`:
+
+- `discover-balanced-quality`, `discover-deep-quality`, and `discover-balanced-blended-quality-heavy` all stayed closer to the native baseline than `query`, `activity`, or plain `blended`.
+- `discover-balanced-query` still produced the biggest semantic shift among the balanced non-slice runs, with only `4/10` overlap and `6` novel results versus `native-best-match`.
+- The Rust slice stayed intentionally far from the baseline. Both `native-rust` and `discover-balanced-blended-rust` overlapped the native baseline by only `1/10`.
+- The recency slice completed successfully and remained high-churn. `discover-balanced-activity-updated-1y` overlapped the native baseline by `4/10` and introduced `6` novel repositories.
+- The most persistent repositories across scenarios were `gitui-org/gitui`, `gui-cs/Terminal.Gui`, `jesseduffield/lazygit`, and `containers/podman-tui`.
+
+Run-completion note:
+
+- Three expensive `terminal ui` scenarios initially needed staggered reruns in tmux, but the final artifact set is now complete and the regenerated report contains no exclusions.
+
+## Constraints
+
+- This is a live GitHub benchmark. Results will drift over time as repositories change.
+- The study is designed for comparison and contrast, not for freezing a permanent golden dataset.
+- Search-rate limits still apply. The runner inserts a short sleep between calls to avoid bursty traffic.
