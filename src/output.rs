@@ -317,6 +317,11 @@ fn print_json<T: serde::Serialize>(value: &T, pretty: bool) -> AppResult<()> {
 }
 
 fn print_csv(repos: &[Repository]) -> AppResult<()> {
+    let raw = render_csv(repos)?;
+    write_line(raw.trim_end())
+}
+
+fn render_csv(repos: &[Repository]) -> AppResult<String> {
     let mut writer = Writer::from_writer(Vec::new());
     writer
         .write_record([
@@ -396,7 +401,7 @@ fn print_csv(repos: &[Repository]) -> AppResult<()> {
     let raw = String::from_utf8(bytes).map_err(|err| {
         AppError::with_detail("E_OUTPUT", "failed to decode CSV output", err.to_string())
     })?;
-    write_line(raw.trim_end())
+    Ok(raw)
 }
 
 fn accent(color: ColorPreference) -> &'static str {
@@ -412,5 +417,96 @@ fn use_color(color: ColorPreference) -> bool {
         ColorPreference::Always => true,
         ColorPreference::Never => false,
         ColorPreference::Auto => io::stdout().is_terminal(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{render_csv, write_repo_block, write_repo_detail};
+    use crate::model::{ColorPreference, ExplainScore, LicenseInfo, Owner, ReleaseSummary, Repository, ScoreWeights};
+    use chrono::{TimeZone, Utc};
+
+    fn repo() -> Repository {
+        Repository {
+            name: "rocket".to_string(),
+            full_name: "example/rocket".to_string(),
+            html_url: "https://example.com/rocket".to_string(),
+            description: Some("CLI, with \"quotes\"".to_string()),
+            stargazers_count: 420,
+            forks_count: 32,
+            language: Some("Rust".to_string()),
+            topics: vec!["cli".to_string(), "search".to_string()],
+            license: Some(LicenseInfo {
+                key: Some("mit".to_string()),
+                name: Some("MIT License".to_string()),
+                spdx_id: Some("MIT".to_string()),
+            }),
+            created_at: Utc.with_ymd_and_hms(2024, 1, 10, 0, 0, 0).unwrap(),
+            updated_at: Utc.with_ymd_and_hms(2026, 4, 20, 0, 0, 0).unwrap(),
+            pushed_at: Utc.with_ymd_and_hms(2026, 4, 19, 0, 0, 0).unwrap(),
+            archived: false,
+            is_template: false,
+            fork: false,
+            open_issues_count: Some(4),
+            owner: Owner {
+                login: "example".to_string(),
+            },
+            readme: Some("# Rocket\n\nREADME body.\n".to_string()),
+            latest_release: Some(ReleaseSummary {
+                tag_name: "v1.2.3".to_string(),
+                name: Some("v1.2.3".to_string()),
+                published_at: Some(Utc.with_ymd_and_hms(2026, 4, 18, 0, 0, 0).unwrap()),
+                html_url: "https://example.com/rocket/releases/v1.2.3".to_string(),
+            }),
+            contributor_count: Some(3),
+            explain: Some(ExplainScore {
+                query: Some(0.9),
+                activity: Some(0.8),
+                quality: Some(0.7),
+                blended: Some(0.85),
+                weights: Some(ScoreWeights {
+                    query: 1.0,
+                    activity: 1.0,
+                    quality: 1.0,
+                }),
+                matched_surfaces: vec!["name".to_string(), "readme".to_string()],
+            }),
+        }
+    }
+
+    #[test]
+    fn render_csv_escapes_commas_and_quotes() {
+        let raw = render_csv(&[repo()]).unwrap();
+        let mut lines = raw.lines();
+        let header = lines.next().unwrap();
+        let row = lines.next().unwrap();
+
+        assert!(header.starts_with("full_name,html_url,description"));
+        assert!(row.contains("\"CLI, with \"\"quotes\"\"\""));
+        assert!(row.contains("cli|search"));
+        assert!(row.contains(",0.9,0.8,0.7,0.85"));
+    }
+
+    #[test]
+    fn write_repo_block_includes_scores_without_color_when_disabled() {
+        let mut output = Vec::new();
+        write_repo_block(&mut output, &repo(), ColorPreference::Never).unwrap();
+        let rendered = String::from_utf8(output).unwrap();
+
+        assert!(rendered.contains("example/rocket"));
+        assert!(rendered.contains("stars=420 forks=32 language=Rust updated=2026-04-20"));
+        assert!(rendered.contains("score query=0.900 activity=0.800 quality=0.700 blended=0.850"));
+        assert!(!rendered.contains("\u{1b}["));
+    }
+
+    #[test]
+    fn write_repo_detail_includes_release_and_trimmed_readme() {
+        let mut output = Vec::new();
+        write_repo_detail(&mut output, &repo()).unwrap();
+        let rendered = String::from_utf8(output).unwrap();
+
+        assert!(rendered.contains("latest_release: v1.2.3 (2026-04-18)"));
+        assert!(rendered.contains("README\n------\n# Rocket\n\nREADME body."));
+        assert!(rendered.contains("license: MIT"));
     }
 }

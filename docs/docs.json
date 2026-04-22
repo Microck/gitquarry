@@ -11,6 +11,7 @@
     "light": "/images/gitquarry-logo-light.svg",
     "dark": "/images/gitquarry-logo-dark.svg"
   },
+  "favicon": "/images/favicon.png",
   "seo": {
     "metatags": {
       "canonical": "https://gitquarry.micr.dev"

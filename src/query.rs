@@ -519,10 +519,17 @@ pub fn discovery_target(depth: DiscoveryDepth, limit: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_search_plan, compiled_query_has_qualifier};
+    use super::{apply_post_filters, build_search_plan, compiled_query_has_qualifier, discovery_target};
     use crate::cli::SearchArgs;
-    use crate::model::{OutputFormat, ProgressMode, RankMode, RetrievalMode, SearchSort};
-    use chrono::Utc;
+    use crate::model::{
+        DiscoveryDepth, OutputFormat, Owner, ProgressMode, RankMode, Repository, RetrievalMode,
+        SearchSort,
+    };
+    use chrono::{TimeZone, Utc};
+
+    fn fixed_now() -> chrono::DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 4, 22, 12, 0, 0).unwrap()
+    }
 
     fn baseline_args() -> SearchArgs {
         SearchArgs {
@@ -566,6 +573,34 @@ mod tests {
         }
     }
 
+    fn repo(name: &str, updated_at: chrono::DateTime<Utc>) -> Repository {
+        Repository {
+            name: name.to_string(),
+            full_name: format!("owner/{name}"),
+            html_url: format!("https://example.com/{name}"),
+            description: Some(format!("{name} description")),
+            stargazers_count: 1,
+            forks_count: 1,
+            language: Some("Rust".to_string()),
+            topics: vec!["cli".to_string()],
+            license: None,
+            created_at: Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(),
+            updated_at,
+            pushed_at: updated_at,
+            archived: false,
+            is_template: false,
+            fork: false,
+            open_issues_count: Some(0),
+            owner: Owner {
+                login: "owner".to_string(),
+            },
+            readme: None,
+            latest_release: None,
+            contributor_count: Some(1),
+            explain: None,
+        }
+    }
+
     #[test]
     fn native_search_requires_query() {
         let mut args = baseline_args();
@@ -575,7 +610,7 @@ mod tests {
             OutputFormat::Pretty,
             10,
             ProgressMode::Auto,
-            Utc::now(),
+            fixed_now(),
         )
         .unwrap_err();
         assert_eq!(err.code, "E_QUERY_REQUIRED");
@@ -590,7 +625,7 @@ mod tests {
             OutputFormat::Pretty,
             10,
             ProgressMode::Auto,
-            Utc::now(),
+            fixed_now(),
         )
         .unwrap();
         assert_eq!(plan.rank, RankMode::Blended);
@@ -606,7 +641,7 @@ mod tests {
             OutputFormat::Pretty,
             10,
             ProgressMode::Auto,
-            Utc::now(),
+            fixed_now(),
         )
         .unwrap_err();
         assert_eq!(err.code, "E_FLAG_CONFLICT");
@@ -621,7 +656,7 @@ mod tests {
             OutputFormat::Pretty,
             10,
             ProgressMode::Auto,
-            Utc::now(),
+            fixed_now(),
         )
         .unwrap_err();
         assert_eq!(err.code, "E_FLAG_REQUIRES_MODE");
@@ -638,7 +673,7 @@ mod tests {
             OutputFormat::Pretty,
             10,
             ProgressMode::Auto,
-            Utc::now(),
+            fixed_now(),
         )
         .unwrap_err();
         assert_eq!(err.code, "E_FLAG_CONFLICT");
@@ -655,5 +690,282 @@ mod tests {
             "rust cli start:here",
             "stars"
         ));
+    }
+
+    #[test]
+    fn build_search_plan_compiles_structured_qualifiers() {
+        let mut args = baseline_args();
+        args.mode = Some(RetrievalMode::Discover);
+        args.user = Some("microck".to_string());
+        args.language = vec!["Rust".to_string(), "TypeScript".to_string()];
+        args.topic = vec!["cli".to_string()];
+        args.license = vec!["mit".to_string()];
+        args.min_stars = Some(100);
+        args.max_forks = Some(50);
+        args.created_after = Some("2024-01-01".to_string());
+        args.pushed_before = Some("2026-04-20".to_string());
+
+        let plan = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            plan.compiled_query,
+            "rust cli user:microck language:Rust language:TypeScript topic:cli license:mit stars:>=100 forks:<=50 created:>=2024-01-01 pushed:<=2026-04-20"
+        );
+        assert!(plan.native_query_present);
+    }
+
+    #[test]
+    fn discover_without_query_and_filters_uses_seed_query() {
+        let mut args = baseline_args();
+        args.query = None;
+        args.mode = Some(RetrievalMode::Discover);
+
+        let plan = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap();
+
+        assert_eq!(plan.compiled_query, "stars:>=1");
+        assert!(!plan.native_query_present);
+    }
+
+    #[test]
+    fn updated_filters_stay_out_of_compiled_query_and_become_post_filters() {
+        let mut args = baseline_args();
+        args.mode = Some(RetrievalMode::Discover);
+        args.updated_after = Some("2026-04-01".to_string());
+        args.updated_before = Some("2026-04-20".to_string());
+
+        let plan = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap();
+
+        assert_eq!(plan.compiled_query, "rust cli");
+        assert_eq!(
+            plan.post_filters.updated_after,
+            Some(Utc.with_ymd_and_hms(2026, 4, 1, 0, 0, 0).unwrap())
+        );
+        assert_eq!(
+            plan.post_filters.updated_before,
+            Some(Utc.with_ymd_and_hms(2026, 4, 20, 23, 59, 59).unwrap())
+        );
+    }
+
+    #[test]
+    fn relative_dates_are_resolved_from_fixed_now() {
+        let mut args = baseline_args();
+        args.mode = Some(RetrievalMode::Discover);
+        args.created_within = Some("30d".to_string());
+        args.updated_within = Some("12h".to_string());
+
+        let plan = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap();
+
+        assert!(plan.compiled_query.contains("created:>=2026-03-23"));
+        assert_eq!(
+            plan.post_filters.updated_after,
+            Some(Utc.with_ymd_and_hms(2026, 4, 22, 0, 0, 0).unwrap())
+        );
+    }
+
+    #[test]
+    fn rejects_user_and_org_together() {
+        let mut args = baseline_args();
+        args.user = Some("microck".to_string());
+        args.org = Some("micr".to_string());
+
+        let err = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err.code, "E_FLAG_CONFLICT");
+        assert!(err.message.contains("--user cannot be combined with --org"));
+    }
+
+    #[test]
+    fn rejects_inverted_numeric_ranges() {
+        let mut args = baseline_args();
+        args.min_stars = Some(200);
+        args.max_stars = Some(100);
+
+        let err = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err.code, "E_FLAG_CONFLICT");
+        assert!(err.message.contains("min stars cannot be greater than max stars"));
+    }
+
+    #[test]
+    fn rejects_inverted_date_ranges() {
+        let mut args = baseline_args();
+        args.created_after = Some("2026-04-21".to_string());
+        args.created_before = Some("2026-04-20".to_string());
+
+        let err = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err.code, "E_FLAG_CONFLICT");
+        assert!(err.message.contains("--created-after cannot be later than --created-before"));
+    }
+
+    #[test]
+    fn rejects_absolute_and_relative_date_mix() {
+        let mut args = baseline_args();
+        args.pushed_after = Some("2026-04-01".to_string());
+        args.pushed_within = Some("30d".to_string());
+
+        let err = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err.code, "E_FLAG_CONFLICT");
+        assert!(err.message.contains("--pushed-after cannot be combined with --pushed-within"));
+    }
+
+    #[test]
+    fn rejects_invalid_relative_duration_units() {
+        let mut args = baseline_args();
+        args.mode = Some(RetrievalMode::Discover);
+        args.created_within = Some("3q".to_string());
+
+        let err = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err.code, "E_FLAG_CONFLICT");
+        assert!(err.message.contains("relative duration must end with h, d, w, m, or y"));
+    }
+
+    #[test]
+    fn rejects_invalid_date_format() {
+        let mut args = baseline_args();
+        args.mode = Some(RetrievalMode::Discover);
+        args.created_after = Some("04/01/2026".to_string());
+
+        let err = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err.code, "E_FLAG_CONFLICT");
+        assert!(err.message.contains("invalid date; expected YYYY-MM-DD"));
+    }
+
+    #[test]
+    fn readme_allows_concurrency_outside_discover_mode() {
+        let mut args = baseline_args();
+        args.concurrency = Some(2);
+        args.readme = true;
+
+        let plan = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap();
+
+        assert_eq!(plan.concurrency, 2);
+    }
+
+    #[test]
+    fn blended_rank_rejects_all_zero_weights() {
+        let mut args = baseline_args();
+        args.mode = Some(RetrievalMode::Discover);
+        args.rank = Some(RankMode::Blended);
+        args.weight_query = Some(0.0);
+        args.weight_activity = Some(0.0);
+        args.weight_quality = Some(0.0);
+
+        let err = build_search_plan(
+            &args,
+            OutputFormat::Pretty,
+            10,
+            ProgressMode::Auto,
+            fixed_now(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err.code, "E_FLAG_CONFLICT");
+        assert!(err.message.contains("all blended weights cannot be zero"));
+    }
+
+    #[test]
+    fn apply_post_filters_respects_updated_range_bounds() {
+        let repos = vec![
+            repo("early", Utc.with_ymd_and_hms(2026, 4, 1, 0, 0, 0).unwrap()),
+            repo("middle", Utc.with_ymd_and_hms(2026, 4, 10, 0, 0, 0).unwrap()),
+            repo("late", Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap()),
+        ];
+        let filters = super::PostFilters {
+            updated_after: Some(Utc.with_ymd_and_hms(2026, 4, 5, 0, 0, 0).unwrap()),
+            updated_before: Some(Utc.with_ymd_and_hms(2026, 4, 20, 23, 59, 59).unwrap()),
+        };
+
+        let filtered = apply_post_filters(&repos, &filters);
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name, "middle");
+    }
+
+    #[test]
+    fn discovery_target_honors_depth_caps_and_floors() {
+        assert_eq!(discovery_target(DiscoveryDepth::Quick, 1), 25);
+        assert_eq!(discovery_target(DiscoveryDepth::Balanced, 60), 200);
+        assert_eq!(discovery_target(DiscoveryDepth::Deep, 1), 100);
     }
 }

@@ -221,7 +221,7 @@ fn matched_surfaces(repo: &Repository, needles: &[String]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::rerank;
-    use crate::model::{Owner, RankMode, Repository, ScoreWeights};
+    use crate::model::{LicenseInfo, Owner, RankMode, ReleaseSummary, Repository, ScoreWeights};
     use chrono::{TimeZone, Utc};
 
     fn repo(name: &str, stars: u64, forks: u64, description: &str) -> Repository {
@@ -249,6 +249,15 @@ mod tests {
             latest_release: None,
             contributor_count: Some(20),
             explain: None,
+        }
+    }
+
+    fn recent_release() -> ReleaseSummary {
+        ReleaseSummary {
+            tag_name: "v1.0.0".to_string(),
+            name: Some("v1.0.0".to_string()),
+            published_at: Some(Utc.with_ymd_and_hms(2026, 4, 20, 0, 0, 0).unwrap()),
+            html_url: "https://example.com/release".to_string(),
         }
     }
 
@@ -289,5 +298,124 @@ mod tests {
             Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap(),
         );
         assert!(repos[0].explain.is_none());
+    }
+
+    #[test]
+    fn activity_rank_prefers_recent_and_non_archived_repositories() {
+        let mut fresh = repo("fresh", 10, 5, "tooling");
+        fresh.updated_at = Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap();
+        fresh.pushed_at = Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap();
+        fresh.latest_release = Some(recent_release());
+
+        let mut stale = repo("stale", 10, 5, "tooling");
+        stale.updated_at = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        stale.pushed_at = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        stale.archived = true;
+
+        let mut repos = vec![stale, fresh];
+        rerank(
+            &mut repos,
+            RankMode::Activity,
+            Some("tooling"),
+            &ScoreWeights {
+                query: 0.0,
+                activity: 1.0,
+                quality: 0.0,
+            },
+            true,
+            Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap(),
+        );
+
+        assert_eq!(repos[0].name, "fresh");
+        let explain = repos[0].explain.as_ref().unwrap();
+        assert!(explain.activity.unwrap() > explain.query.unwrap());
+    }
+
+    #[test]
+    fn quality_rank_prefers_stronger_repository_signals() {
+        let mut strong = repo("strong", 5_000, 400, "tooling");
+        strong.license = Some(LicenseInfo {
+            key: Some("mit".to_string()),
+            name: Some("MIT License".to_string()),
+            spdx_id: Some("MIT".to_string()),
+        });
+        strong.contributor_count = Some(150);
+        strong.readme = Some("documented tooling".to_string());
+
+        let mut weak = repo("weak", 10, 1, "tooling");
+        weak.contributor_count = Some(1);
+        weak.readme = Some(String::new());
+
+        let mut repos = vec![weak, strong];
+        rerank(
+            &mut repos,
+            RankMode::Quality,
+            Some("tooling"),
+            &ScoreWeights {
+                query: 0.0,
+                activity: 0.0,
+                quality: 1.0,
+            },
+            true,
+            Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap(),
+        );
+
+        assert_eq!(repos[0].name, "strong");
+        assert!(repos[0].explain.as_ref().unwrap().quality.unwrap() > 0.5);
+    }
+
+    #[test]
+    fn blended_rank_with_zero_weight_component_ignores_that_component() {
+        let mut query_match = repo("query-match", 10, 5, "rust automation");
+        query_match.updated_at = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        query_match.pushed_at = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+
+        let mut active = repo("active", 10, 5, "generic tooling");
+        active.updated_at = Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap();
+        active.pushed_at = Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap();
+        active.latest_release = Some(recent_release());
+
+        let mut repos = vec![active, query_match];
+        rerank(
+            &mut repos,
+            RankMode::Blended,
+            Some("rust"),
+            &ScoreWeights {
+                query: 1.0,
+                activity: 0.0,
+                quality: 0.0,
+            },
+            true,
+            Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap(),
+        );
+
+        assert_eq!(repos[0].name, "query-match");
+        let explain = repos[0].explain.as_ref().unwrap();
+        assert_eq!(explain.weights.as_ref().unwrap().activity, 0.0);
+        assert!(explain.matched_surfaces.contains(&"description".to_string()));
+    }
+
+    #[test]
+    fn zero_total_weights_fall_back_to_star_tiebreaker() {
+        let mut low_star = repo("low-star", 10, 5, "tooling");
+        let mut high_star = repo("high-star", 50, 5, "tooling");
+        low_star.description = Some("neutral".to_string());
+        high_star.description = Some("neutral".to_string());
+
+        let mut repos = vec![low_star, high_star];
+        rerank(
+            &mut repos,
+            RankMode::Blended,
+            Some("missing"),
+            &ScoreWeights {
+                query: 0.0,
+                activity: 0.0,
+                quality: 0.0,
+            },
+            false,
+            Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap(),
+        );
+
+        assert_eq!(repos[0].name, "high-star");
     }
 }
