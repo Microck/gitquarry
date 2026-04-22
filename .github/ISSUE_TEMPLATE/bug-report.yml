@@ -1,0 +1,59 @@
+name: Bug report
+description: Report a reproducible problem in gitquarry.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for reproducible product or documentation bugs.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken?
+      placeholder: One clear sentence describing the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide the exact steps or command sequence.
+      placeholder: |
+        1. Run ...
+        2. Pass ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, shell, and how you installed gitquarry.
+      placeholder: |
+        OS:
+        Shell:
+        Install method:
+        gitquarry version:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output or logs
+      description: Paste stderr or structured output if relevant. Do not include live tokens.
+      render: shell

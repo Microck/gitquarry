@@ -1,0 +1,95 @@
+---
+title: "Authentication"
+description: "Understand PAT requirements, host-scoped storage, environment precedence, and explicit insecure fallback."
+---
+
+# Authentication
+
+Gitquarry requires authentication for every GitHub request.
+
+## Scope
+
+- PAT-only in v1
+- host-scoped credentials
+- public repositories only
+- read-only GitHub usage
+
+## Login
+
+Interactive:
+
+```bash
+gitquarry auth login
+```
+
+From stdin:
+
+```bash
+printf '%s' "$GITHUB_TOKEN" | gitquarry auth login --token-stdin
+```
+
+Gitquarry validates the token immediately before saving it.
+
+## Resolution Order
+
+Credential resolution follows this order:
+
+1. host-specific environment variable such as `GITQUARRY_TOKEN_GITHUB_COM`
+2. global environment variable `GITQUARRY_TOKEN`
+3. saved secure credential for the current host
+4. explicit insecure-file fallback, only when opted in
+
+## Secure Storage
+
+Secure OS storage is the default path.
+
+- Linux: native keyring backend
+- macOS and iOS: Apple-native backend
+- Windows: Windows-native backend
+
+On login, gitquarry verifies that secure storage can actually read back the saved token. It does not claim success on a write that cannot be durably resolved afterward.
+
+## Insecure Fallback
+
+If secure storage is unavailable, gitquarry can fall back to a local credentials file only when you explicitly opt in:
+
+```bash
+export GITQUARRY_ALLOW_INSECURE_STORAGE=1
+```
+
+Without that env var, a failed secure save returns `E_AUTH_STORAGE`.
+
+On Unix-like systems, gitquarry restricts:
+
+- the config directory to owner-only permissions
+- the insecure credential file to owner-only permissions
+
+## Status and Logout
+
+```bash
+gitquarry auth status
+gitquarry auth logout
+```
+
+`auth status` reports the effective state for the current host.
+
+If an environment override is active, that override is reported separately from saved credential state.
+
+`auth logout` removes saved credentials for the current host, including opt-in insecure-file credentials.
+
+## Host-Specific Environment Variables
+
+For GitHub.com:
+
+```bash
+export GITQUARRY_TOKEN_GITHUB_COM=ghp_your_token_here
+gitquarry --host github.com search "rust cli"
+```
+
+For a GitHub Enterprise host, gitquarry derives a host-specific env var name from the normalized host.
+
+## Related Commands
+
+- [auth](/commands/auth)
+- [search](/commands/search)
+- [search behavior](/reference/search-behavior)

@@ -1,0 +1,42 @@
+---
+title: "Contributing"
+description: "How to approach changes to gitquarry without breaking the product contract."
+---
+
+# Contributing
+
+Gitquarry is intentionally opinionated about what it should and should not do.
+
+## Start With the Contract
+
+Before changing behavior, read:
+
+- `SPEC.md`
+- `ARCHITECTURE.md`
+
+The most important rule is that plain search must remain close to native GitHub repository search.
+
+## Preferred Change Shape
+
+Good changes tend to be:
+
+- explicit rather than implicit
+- bounded rather than open-ended
+- easy to verify mechanically
+- narrow in scope
+
+## Tests
+
+If you touch non-trivial behavior, add or update tests that prove:
+
+- the intended success path
+- the important failure path
+- any edge case that motivated the change
+
+## Documentation
+
+If you change the command surface or user-visible behavior:
+
+- update the README
+- update the relevant Mintlify page in `docs/`
+- keep the docs aligned with the actual CLI help output

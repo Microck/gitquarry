@@ -1,0 +1,68 @@
+---
+title: "Installation"
+description: "Install gitquarry from crates.io, from release artifacts, or from source."
+---
+
+# Installation
+
+Gitquarry is distributed as a Rust crate and as tagged release binaries.
+
+## Install From crates.io
+
+```bash
+cargo install gitquarry
+```
+
+## Install From GitHub Releases
+
+Tagged releases publish platform archives on GitHub Releases.
+
+Pick the archive that matches your platform from:
+
+- `gitquarry-linux.tar.gz`
+- `gitquarry-macos.tar.gz`
+- `gitquarry-windows.zip`
+
+## Install From a Checkout
+
+```bash
+# from a local clone of this repository
+cargo install --path .
+```
+
+If you do not want to install it globally yet:
+
+```bash
+cargo run -- search "rust cli"
+```
+
+## Requirements
+
+- Rust toolchain
+- network access to GitHub's API
+- a GitHub personal access token for any real command
+
+## Release and Publish Flow
+
+Tagged releases verify the package, publish the crate when the registry token is configured, and attach platform archives to the GitHub release.
+
+## Verify
+
+```bash
+gitquarry --help
+gitquarry search --help
+gitquarry auth login --help
+```
+
+## Local Docs Preview
+
+Mintlify uses `docs.json` as the site configuration file. In this repo it lives at `docs/docs.json`.
+
+Run the Mintlify preview server from the `docs/` directory:
+
+```bash
+cd docs
+mint dev
+```
+
+If you do not already have the Mintlify CLI installed, follow Mintlify's current CLI install docs first.

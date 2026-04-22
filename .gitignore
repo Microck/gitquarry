@@ -1,0 +1,22 @@
+target/
+.dora/
+
+# local docs and package-manager artifacts
+node_modules/
+.mint/
+docs/.next/
+
+# local environment and credential files
+.env
+.env.local
+.env.*.local
+
+# editor and OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# local build and verification outputs
+dist/
+coverage/
+*.log

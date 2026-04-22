@@ -1,0 +1,159 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  verify-release:
+    name: Verify release tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify tag matches package version
+        run: |
+          set -euo pipefail
+          PACKAGE_VERSION="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "gitquarry") | .version')"
+          EXPECTED_TAG="v${PACKAGE_VERSION}"
+          if [ "${GITHUB_REF_NAME}" != "${EXPECTED_TAG}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match package version ${EXPECTED_TAG}" >&2
+            exit 1
+          fi
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Package
+        run: cargo package --locked --allow-dirty
+
+      - name: CLI smoke
+        run: |
+          cargo run --locked -- --help
+          cargo run --locked -- search --help
+          cargo run --locked -- auth login --help
+
+  publish-crate:
+    name: Publish crate
+    if: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+    needs: verify-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Publish to crates.io
+        run: cargo publish --locked --token "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+
+  build-release:
+    name: Build release (${{ matrix.label }})
+    needs: verify-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux
+            binary: gitquarry
+            archive: tar.gz
+          - os: macos-latest
+            label: macos
+            binary: gitquarry
+            archive: tar.gz
+          - os: windows-latest
+            label: windows
+            binary: gitquarry.exe
+            archive: zip
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --locked --release
+
+      - name: Package artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          cp target/release/${{ matrix.binary }} dist/
+          tar -C dist -czf gitquarry-${{ matrix.label }}.tar.gz ${{ matrix.binary }}
+
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "target/release/${{ matrix.binary }}" "dist/${{ matrix.binary }}"
+          Compress-Archive -Path "dist/${{ matrix.binary }}" -DestinationPath "gitquarry-${{ matrix.label }}.zip" -Force
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitquarry-${{ matrix.label }}
+          path: gitquarry-${{ matrix.label }}.${{ matrix.archive }}
+
+  publish-release:
+    name: Publish release
+    needs:
+      - build-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release
+          find release-artifacts -type f -maxdepth 2 -exec cp {} release/ \;
+          cd release
+          sha256sum * > SHA256SUMS
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitquarry-release-bundle
+          path: release/*
+
+      - name: Upload release artifacts
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*

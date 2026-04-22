@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose a scoped improvement to gitquarry.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep requests concrete. Gitquarry prefers explicit, bounded behavior over broad automation magic.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What workflow or limitation are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the smallest useful change.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What are you doing today instead?
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Area
+      options:
+        - CLI behavior
+        - Search/discovery
+        - Auth/storage
+        - Output formats
+        - Documentation
+        - CI/release
+    validations:
+      required: true

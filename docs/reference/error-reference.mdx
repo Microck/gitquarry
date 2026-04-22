@@ -1,0 +1,74 @@
+---
+title: "Error Reference"
+description: "Reference for common gitquarry error codes and what they mean."
+---
+
+# Error Reference
+
+Gitquarry returns one clear error at a time.
+
+## Common Error Codes
+
+### `E_AUTH_REQUIRED`
+
+No effective credential was available for the current host.
+
+Typical fix:
+
+```bash
+gitquarry auth login
+```
+
+### `E_AUTH_INVALID`
+
+The token was empty, rejected, or invalid for the attempted operation.
+
+### `E_AUTH_STORAGE`
+
+Credential storage failed.
+
+Common causes:
+
+- local secure storage backend unavailable
+- insecure fallback not explicitly enabled
+- malformed insecure credential file
+
+### `E_FLAG_PARSE`
+
+Clap-level flag parse failure, such as an invalid enum value.
+
+### `E_FLAG_CONFLICT`
+
+Two flags or inputs conflict semantically.
+
+Examples:
+
+- mixed date-window styles
+- invalid blended weights
+- raw qualifier plus overlapping structured flag
+
+### `E_FLAG_REQUIRES_MODE`
+
+A flag requires `--mode discover`.
+
+Typical examples:
+
+- non-native `--rank`
+- discovery-only `--depth`
+- advanced enrichment knobs
+
+### `E_QUERY_REQUIRED`
+
+A plain native search was attempted without a query.
+
+### `E_GITHUB_API`
+
+GitHub returned a non-success API response that gitquarry could not treat as a normal optional case.
+
+### `E_HTTP`
+
+Transport, request, or decode failure.
+
+## Operational Notes
+
+Gitquarry intentionally stops at the first clear error. It does not emit a batch of speculative fixes.

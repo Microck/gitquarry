@@ -1,0 +1,98 @@
+---
+title: "Discovery Mode"
+description: "Understand when to stay native and when to opt into bounded candidate collection, enrichment, and reranking."
+---
+
+# Discovery Mode
+
+Discover mode is the deliberate break from native GitHub behavior.
+
+## When to Use It
+
+Use discover mode when you want:
+
+- broader candidate collection than one native result page
+- ranking by activity or quality instead of GitHub order
+- README-aware reranking
+- explanation of why one repository ranked above another
+
+## The Contract
+
+Discover mode is explicit:
+
+```bash
+gitquarry search --mode discover ...
+```
+
+Without `--mode discover`, none of the discovery engine work should happen.
+
+## Depth
+
+Supported depths:
+
+- `quick`
+- `balanced`
+- `deep`
+
+The depth controls how aggressively gitquarry expands beyond the seed search.
+
+### quick
+
+- one seed search
+- rerank only what came back
+
+### balanced
+
+- seed search
+- updated shard if needed
+- one recent `pushed` shard if needed
+
+### deep
+
+- balanced behavior
+- additional older pushed buckets
+- star-bucket shards when the user did not already constrain stars
+
+## Ranking
+
+Supported rank modes:
+
+- `native`
+- `query`
+- `activity`
+- `quality`
+- `blended`
+
+If you set `--mode discover` and omit `--rank`, gitquarry defaults to `blended`.
+
+## README Enrichment
+
+`--readme` is enrichment-only.
+
+It does not change retrieval mode by itself. Gitquarry first computes metadata ranking, then fetches README content only for a bounded top window.
+
+## Concurrency
+
+Discover mode supports:
+
+```bash
+--concurrency <N>
+```
+
+Default concurrency is `1` because GitHub rate limiting makes serial behavior the safest default.
+
+## Good Defaults
+
+```bash
+gitquarry search "developer portal" \
+  --mode discover \
+  --rank blended \
+  --limit 10
+```
+
+```bash
+gitquarry search --mode discover \
+  --topic cli \
+  --updated-within 30d \
+  --rank activity
+```

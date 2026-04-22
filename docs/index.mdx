@@ -1,0 +1,101 @@
+---
+title: "Introduction"
+description: "Gitquarry is a GitHub repository search CLI that keeps native search native and makes enhanced discovery explicit."
+---
+
+# Gitquarry
+
+`gitquarry` is a terminal-first CLI for public GitHub repository search.
+
+It is built around one non-negotiable product rule: plain search should stay close to GitHub's own repository search behavior. Discovery, reranking, README enrichment, and broader candidate collection are available, but they only happen when you ask for them.
+
+## Product Shape
+
+Gitquarry splits the problem into two modes:
+
+- **Native search** for "just give me GitHub search from the terminal"
+- **Discover mode** for "search more broadly, enrich the candidates, and rank them intentionally"
+
+That split matters because it keeps normal usage boring and predictable.
+
+## Why It Exists
+
+Most search wrappers collapse two jobs into one command surface:
+
+- a thin wrapper around the upstream API
+- a local ranking engine with a lot of invisible behavior
+
+Gitquarry refuses to blur those together.
+
+If you run:
+
+```bash
+gitquarry search "rust cli"
+```
+
+you should get a native GitHub-style repository search, not a hidden local scoring experiment.
+
+If you want more than that, you opt in:
+
+```bash
+gitquarry search "rust cli" \
+  --mode discover \
+  --rank blended \
+  --readme \
+  --explain
+```
+
+## Core Principles
+
+### Native Means Native
+
+No enhancement flags means one GitHub repository search request, native ordering, and no silent enrichment.
+
+### Discovery Must Be Explicit
+
+Discover mode can fan out across additional shards, enrich repository metadata, inspect README content, and rerank results. None of that is implicit.
+
+### Structured Output Matters
+
+The CLI supports:
+
+- `pretty` for human scanning
+- `json` for stable structured output
+- `compact` for pipelines
+- `csv` for flat export
+
+### Fail Fast
+
+Conflicting flags stop immediately with one symbolic error code. The CLI does not try to guess which input you meant.
+
+## Command Surface
+
+Root commands:
+
+```bash
+gitquarry search [OPTIONS] [QUERY]
+gitquarry inspect [OPTIONS] <OWNER/REPO>
+gitquarry auth login|status|logout
+gitquarry config path|show
+gitquarry version
+gitquarry --generate-completion <shell>
+```
+
+## Authentication Model
+
+Gitquarry is PAT-authenticated for all GitHub requests.
+
+- credentials are host-scoped
+- environment variables override saved credentials
+- secure OS storage is the default
+- insecure file fallback exists only with explicit opt-in
+
+See the [Authentication guide](/guides/authentication) for the exact precedence and fallback model.
+
+## Read This Next
+
+- [Installation](/guides/installation)
+- [Quickstart](/guides/quickstart)
+- [Authentication](/guides/authentication)
+- [search](/commands/search)
+- [Output Contract](/reference/output-contract)

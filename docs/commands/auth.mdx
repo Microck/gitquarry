@@ -1,0 +1,65 @@
+---
+title: "auth"
+description: "Reference for gitquarry auth login, status, and logout, including validation and host-scoped credential behavior."
+---
+
+# `gitquarry auth`
+
+Manage host-scoped GitHub personal access tokens.
+
+## Synopsis
+
+```bash
+gitquarry auth login [--token-stdin]
+gitquarry auth status
+gitquarry auth logout
+```
+
+## `auth login`
+
+Saves a validated PAT for the current effective host.
+
+Interactive:
+
+```bash
+gitquarry auth login
+```
+
+From stdin:
+
+```bash
+printf '%s' "$GITHUB_TOKEN" | gitquarry auth login --token-stdin
+```
+
+Behavior:
+
+- token must not be empty
+- token is validated immediately against GitHub
+- secure storage is attempted first
+- insecure fallback requires explicit opt-in
+
+## `auth status`
+
+Reports whether the current host has a saved PAT.
+
+If an environment override is active, that override is reported separately from saved credential state.
+
+## `auth logout`
+
+Deletes the saved PAT for the current host.
+
+This includes opt-in insecure-file credentials when present.
+
+## Host Awareness
+
+All auth commands honor the effective host:
+
+```bash
+gitquarry --host github.com auth status
+gitquarry --host https://ghe.example.com auth login
+```
+
+## Related
+
+- [Authentication guide](/guides/authentication)
+- [search](/commands/search)

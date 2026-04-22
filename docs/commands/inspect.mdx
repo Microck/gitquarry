@@ -1,0 +1,74 @@
+---
+title: "inspect"
+description: "Reference for gitquarry inspect, including metadata-first output, README inclusion, and supported formats."
+---
+
+# `gitquarry inspect`
+
+Inspect one explicit repository by `owner/repo`.
+
+## Synopsis
+
+```bash
+gitquarry inspect [OPTIONS] <OWNER/REPO>
+```
+
+## Behavior
+
+`inspect` is metadata-first.
+
+Default output includes:
+
+- full name
+- URL
+- description
+- stars and forks
+- language and topics
+- license
+- created, updated, and pushed timestamps
+- archived, template, and fork state
+- open issue count
+- latest release summary when available
+- contributor count when available
+
+README content is optional and explicit.
+
+## Options
+
+```bash
+--readme
+--format pretty|json|compact|csv
+--progress auto|on|off
+```
+
+## Examples
+
+Human-readable:
+
+```bash
+gitquarry inspect rust-lang/rust
+```
+
+Structured JSON:
+
+```bash
+gitquarry inspect rust-lang/rust --format json
+```
+
+Include README:
+
+```bash
+gitquarry inspect rust-lang/rust --readme --format json
+```
+
+## Failure Shape
+
+The repository argument must be in `owner/repo` form.
+
+Example invalid input:
+
+```bash
+gitquarry inspect bad/repo/shape
+```
+
+That fails before auth resolution with a clear error message and symbolic error code.

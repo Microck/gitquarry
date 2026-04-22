@@ -1,0 +1,60 @@
+---
+title: "Search Behavior"
+description: "Reference for the native-versus-discover split, host support, bounded discovery, and ranking semantics."
+---
+
+# Search Behavior
+
+This page describes the behavioral contract behind gitquarry search.
+
+## Native Path
+
+No enhancement flags means:
+
+- one GitHub repository search
+- native ordering
+- no hidden local reranking
+- no README fetches
+
+That is the boring path by design.
+
+## Discover Path
+
+`--mode discover` enables:
+
+- staged candidate collection
+- dedupe by `full_name`
+- metadata enrichment
+- optional README window enrichment
+- explicit rank modes
+
+The discover engine is bounded. There is no persistent index and no background cache.
+
+## Ranking Semantics
+
+Rank modes:
+
+- `native`
+- `query`
+- `activity`
+- `quality`
+- `blended`
+
+`blended` uses a normalized weighted average of query, activity, and quality components.
+
+## Host Support
+
+GitHub.com is the primary target.
+
+Custom hosts are best effort and normalized into:
+
+- canonical web host
+- canonical API base URL
+
+## Rate Limits and Concurrency
+
+Default concurrency is `1`.
+
+That is deliberate because GitHub secondary rate limits make aggressive fan-out a bad default.
+
+When GitHub sends retry guidance through `retry-after` or `x-ratelimit-reset`, gitquarry respects that guidance before retrying.

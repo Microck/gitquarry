@@ -1,0 +1,58 @@
+name: Live Smoke
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  LIVE_TOKEN: ${{ secrets.GITQUARRY_TOKEN }}
+
+permissions:
+  contents: read
+
+jobs:
+  missing-token:
+    if: ${{ env.LIVE_TOKEN == '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain skipped run
+        run: echo "GITQUARRY_TOKEN secret is not configured; skipping live smoke."
+
+  live-e2e:
+    if: ${{ env.LIVE_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build binary
+        run: cargo build --locked
+
+      - name: Run live smoke checks
+        run: |
+          set -euo pipefail
+          TMPDIR="$(mktemp -d)"
+          trap 'rm -rf "$TMPDIR"' EXIT
+
+          GITQUARRY_TOKEN="$LIVE_TOKEN" target/debug/gitquarry auth status
+          GITQUARRY_TOKEN="$LIVE_TOKEN" target/debug/gitquarry search "rust cli" --limit 2 --format json > "$TMPDIR/search.json"
+          GITQUARRY_TOKEN="$LIVE_TOKEN" target/debug/gitquarry inspect rust-lang/rust --format json > "$TMPDIR/inspect.json"
+
+          printf '%s' "$LIVE_TOKEN" | \
+            GITQUARRY_CONFIG_DIR="$TMPDIR" \
+            GITQUARRY_ALLOW_INSECURE_STORAGE=1 \
+            target/debug/gitquarry auth login --token-stdin
+
+          GITQUARRY_CONFIG_DIR="$TMPDIR" \
+          GITQUARRY_ALLOW_INSECURE_STORAGE=1 \
+          target/debug/gitquarry auth status
+
+          GITQUARRY_CONFIG_DIR="$TMPDIR" \
+          GITQUARRY_ALLOW_INSECURE_STORAGE=1 \
+          target/debug/gitquarry search "rust cli" --limit 1 --format compact > "$TMPDIR/persisted-search.json"

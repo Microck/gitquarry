@@ -1,0 +1,55 @@
+---
+title: "config"
+description: "Reference for gitquarry config path and config show, including what can and cannot be saved."
+---
+
+# `gitquarry config`
+
+Inspect configuration paths and effective config values.
+
+## Synopsis
+
+```bash
+gitquarry config path
+gitquarry config show
+```
+
+## `config path`
+
+Prints the effective user config path.
+
+```bash
+gitquarry config path
+```
+
+## `config show`
+
+Prints the effective config payload.
+
+```bash
+gitquarry config show
+```
+
+## Saved Defaults
+
+Allowed saved defaults:
+
+- `host`
+- `format`
+- `limit`
+- `progress`
+- `color`
+
+## Not Saved On Purpose
+
+Gitquarry does not persist behavioral defaults that would silently enable enhanced search behavior.
+
+That means these stay explicit per command:
+
+- `mode`
+- `rank`
+- `depth`
+- `readme`
+- `explain`
+- blended ranking weights
+- discovery engine knobs

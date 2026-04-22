@@ -1,0 +1,106 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "gitquarry",
+  "theme": "maple",
+  "colors": {
+    "primary": "#2563eb",
+    "light": "#60a5fa",
+    "dark": "#0b1220"
+  },
+  "logo": {
+    "light": "/images/gitquarry-logo-light.svg",
+    "dark": "/images/gitquarry-logo-dark.svg"
+  },
+  "seo": {
+    "metatags": {
+      "canonical": "https://gitquarry.micr.dev"
+    }
+  },
+  "contextual": {
+    "options": ["copy", "view"]
+  },
+  "navigation": {
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/Microck/gitquarry"
+        },
+        {
+          "anchor": "crates.io",
+          "href": "https://crates.io/crates/gitquarry"
+        },
+        {
+          "anchor": "docs.rs",
+          "href": "https://docs.rs/gitquarry"
+        }
+      ]
+    },
+    "tabs": [
+      {
+        "tab": "Guides",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "index",
+              "guides/installation",
+              "guides/quickstart",
+              "guides/authentication"
+            ]
+          },
+          {
+            "group": "Search Workflow",
+            "pages": [
+              "guides/discovery-mode"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Commands",
+        "groups": [
+          {
+            "group": "Core Commands",
+            "pages": [
+              "commands/search",
+              "commands/inspect",
+              "commands/auth",
+              "commands/config"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Contracts",
+            "pages": [
+              "reference/output-contract",
+              "reference/error-reference"
+            ]
+          },
+          {
+            "group": "Behavior",
+            "pages": [
+              "reference/search-behavior"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Project",
+        "groups": [
+          {
+            "group": "Development",
+            "pages": [
+              "project/development",
+              "project/contributing"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

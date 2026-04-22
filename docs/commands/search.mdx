@@ -1,0 +1,156 @@
+---
+title: "search"
+description: "Reference for gitquarry search, including native behavior, discover mode, structured flags, and output formats."
+---
+
+# `gitquarry search`
+
+Search public GitHub repositories.
+
+## Synopsis
+
+```bash
+gitquarry search [OPTIONS] [QUERY]
+```
+
+## Default Behavior
+
+With no enhancement flags, `search` behaves as close to native GitHub repository search as possible.
+
+- one repository search request
+- native ordering
+- no silent metadata enrichment
+- no README fetching
+
+## Search Modes
+
+### Native
+
+Native is the default.
+
+```bash
+gitquarry search "rust cli"
+gitquarry search "rust cli" --sort stars
+```
+
+### Discover
+
+Discover mode is explicit:
+
+```bash
+gitquarry search "rust cli" --mode discover
+```
+
+This enables staged candidate collection and local reranking.
+
+## Ranking
+
+```bash
+--rank native|query|activity|quality|blended
+```
+
+Rules:
+
+- non-native ranks require `--mode discover`
+- `--mode discover` without `--rank` defaults to `blended`
+- `--sort` affects candidate retrieval, not final order, when rank is non-native
+
+## Sort
+
+```bash
+--sort best-match|stars|updated
+```
+
+In native ranking, final output order follows the selected sort.
+
+## Structured Filters
+
+Owner and visibility:
+
+- `--user`
+- `--org`
+- `--archived`
+- `--template`
+- `--fork`
+
+Classification:
+
+- `--language`
+- `--topic`
+- `--license`
+
+Ranges:
+
+- `--min-stars`, `--max-stars`
+- `--min-forks`, `--max-forks`
+- `--min-size`, `--max-size`
+
+Dates:
+
+- `--created-after`, `--created-before`
+- `--updated-after`, `--updated-before`
+- `--pushed-after`, `--pushed-before`
+- `--created-within`, `--updated-within`, `--pushed-within`
+
+## Conflict Policy
+
+If you write a raw GitHub qualifier inside the query and also pass an overlapping structured flag, gitquarry fails clearly instead of guessing.
+
+Examples:
+
+- `language:rust` plus `--language go`
+- `stars:>100` plus `--min-stars 200`
+
+## README and Explain
+
+```bash
+--readme
+--explain
+```
+
+- `--readme` enables README enrichment for the top candidate window
+- `--explain` exposes ranking reasons in enhanced modes
+
+## Output
+
+```bash
+--format pretty|json|compact|csv
+```
+
+Examples:
+
+```bash
+gitquarry search "rust cli" --format json
+gitquarry search "rust cli" --format compact
+gitquarry search "rust cli" --format csv
+```
+
+## Examples
+
+Native search:
+
+```bash
+gitquarry search "vector database"
+```
+
+Structured native search:
+
+```bash
+gitquarry search "vector database" --language rust --sort stars
+```
+
+Empty-query discover search:
+
+```bash
+gitquarry search --mode discover --topic cli --limit 5
+```
+
+README-aware discovery:
+
+```bash
+gitquarry search "release automation" \
+  --mode discover \
+  --rank blended \
+  --readme \
+  --explain
+```

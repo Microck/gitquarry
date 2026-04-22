@@ -1,0 +1,62 @@
+---
+title: "Output Contract"
+description: "Understand stdout, stderr, output formats, progress behavior, and scripting expectations."
+---
+
+# Output Contract
+
+Gitquarry is designed to behave well in shells, scripts, and agent workflows.
+
+## Success Output
+
+Supported formats:
+
+- `pretty`
+- `json`
+- `compact`
+- `csv`
+
+### `pretty`
+
+Human-first and concise.
+
+### `json`
+
+Stable structured output intended for tools and scripts.
+
+### `compact`
+
+Minified JSON intended for pipeline use.
+
+### `csv`
+
+Flat output for export-oriented workflows.
+
+## Error Output
+
+Errors are:
+
+- written to `stderr`
+- prefixed with a symbolic error code
+- plain text, not JSON
+- returned with exit code `1`
+
+## Progress Output
+
+Progress output always goes to `stderr`.
+
+```bash
+--progress auto|on|off
+```
+
+In `auto`, gitquarry only shows progress when `stderr` is a TTY.
+
+That keeps structured stdout clean during pipelines.
+
+## Example
+
+```bash
+gitquarry search "rust cli" --format json | jq '.items[0].full_name'
+```
+
+That is safe because progress never pollutes stdout.

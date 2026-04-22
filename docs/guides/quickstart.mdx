@@ -1,0 +1,72 @@
+---
+title: "Quickstart"
+description: "Get to a first successful gitquarry command quickly, then move from native search into explicit discovery."
+---
+
+# Quickstart
+
+This is the fastest path to a first useful run.
+
+## 1. Authenticate
+
+Interactive:
+
+```bash
+gitquarry auth login
+```
+
+Non-interactive:
+
+```bash
+printf '%s' "$GITHUB_TOKEN" | gitquarry auth login --token-stdin
+```
+
+## 2. Run a Plain Search
+
+```bash
+gitquarry search "rust cli"
+```
+
+This is the native path. It stays close to GitHub repository search behavior.
+
+## 3. Add Structured Filters
+
+```bash
+gitquarry search "rust cli" --language rust --topic cli --sort stars
+```
+
+Structured flags append constraints. If you manually include a raw GitHub qualifier in the query and also pass an overlapping structured flag, gitquarry stops with a conflict error instead of guessing.
+
+## 4. Inspect One Repository
+
+```bash
+gitquarry inspect rust-lang/rust
+gitquarry inspect rust-lang/rust --readme --format json
+```
+
+## 5. Turn On Discover Mode
+
+```bash
+gitquarry search "release automation" \
+  --mode discover \
+  --rank blended \
+  --readme \
+  --explain
+```
+
+This is the enhanced path:
+
+- broader candidate collection
+- metadata enrichment
+- optional README scoring
+- explicit reranking
+
+## 6. Use Structured Output
+
+```bash
+gitquarry search "rust cli" --format json
+gitquarry search "rust cli" --format compact
+gitquarry inspect rust-lang/rust --format csv
+```
+
+If you are scripting around gitquarry, read the [Output Contract](/reference/output-contract) next.

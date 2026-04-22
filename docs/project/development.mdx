@@ -1,0 +1,48 @@
+---
+title: "Development"
+description: "Build, test, and validate gitquarry locally."
+---
+
+# Development
+
+Gitquarry is a Rust CLI with smoke coverage around the real command surface.
+
+## Main Commands
+
+```bash
+cargo fmt --all
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+```
+
+## CLI Help Checks
+
+Useful quick checks:
+
+```bash
+cargo run -- --help
+cargo run -- search --help
+cargo run -- auth login --help
+```
+
+## Docs
+
+The Mintlify documentation site lives under `docs/`.
+
+```bash
+cd docs
+mint dev
+```
+
+## CI and Release
+
+The repository includes:
+
+- CI workflow for format, clippy, tests, and CLI smoke
+- cross-platform test matrix
+- release workflow gated by verification, package checks, tag-version matching, and optional crates.io publish
+- live smoke workflow for real-token checks when the secret is configured
+
+## Release Operations
+
+The maintainer release checklist lives in [`docs/release-runbook.md`](../release-runbook.md).
