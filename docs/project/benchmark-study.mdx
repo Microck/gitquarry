@@ -90,6 +90,8 @@ To refresh the visual artifacts after the study outputs are present:
 python3 scripts/render-benchmark-charts.py
 ```
 
+The checked-in docs visuals are raster infographics derived from those chart blueprints. The SVGs remain useful as deterministic source references, while the published page uses PNG outputs.
+
 ## Output Files
 
 After a run, the key artifacts are:
@@ -99,7 +101,8 @@ After a run, the key artifacts are:
 - `target/benchmark-study/repo-rows.csv`
 - `target/benchmark-study/comparisons.csv`
 - `target/benchmark-study/raw/<query>/<scenario>.json`
-- `docs/images/benchmark-study/*.svg`
+- `docs/images/benchmark-study/*.svg` (deterministic chart blueprints)
+- `docs/images/benchmark-study/*.png` (published raster infographics)
 
 ## How To Read The Results
 
@@ -129,7 +132,7 @@ These are the most useful contrasts:
 
 ### Latency Profile
 
-![Benchmark latency profile](/images/benchmark-study/latency-profile.svg)
+![Benchmark latency profile](/images/benchmark-study/latency-profile.png)
 
 This chart makes the cost ladder obvious:
 
@@ -141,7 +144,7 @@ This chart makes the cost ladder obvious:
 
 ### Churn Versus Native
 
-![Scenario churn versus the native baseline](/images/benchmark-study/baseline-churn.svg)
+![Scenario churn versus the native baseline](/images/benchmark-study/baseline-churn.png)
 
 This chart is the main compare-and-contrast view for option selection:
 
@@ -151,7 +154,7 @@ This chart is the main compare-and-contrast view for option selection:
 
 ### Persistent Repository Leaders
 
-![Most persistent repositories across the study](/images/benchmark-study/persistence-leaders.svg)
+![Most persistent repositories across the study](/images/benchmark-study/persistence-leaders.png)
 
 This chart shows which repositories keep surviving rank, depth, README, and filter changes. Those are the best candidates for examples, screenshots, and explanation in follow-up writeups.
 
