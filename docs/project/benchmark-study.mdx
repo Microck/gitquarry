@@ -1,68 +1,162 @@
 ---
 title: "Benchmark Study"
-description: "How to run and interpret a thorough live benchmark study for gitquarry search behavior."
+description: "A decision-grade benchmark study for gitquarry search modes, depths, rank strategies, and optional filters."
 ---
 
 # Benchmark Study
 
-This project includes a reproducible live-study harness for comparing `gitquarry search` behavior across:
+This page is the benchmark dossier for `gitquarry search`. It is not just a run log. The goal is to answer the product questions that matter in practice:
 
-- native and discover retrieval
-- quick, balanced, and deep discover depth
-- native, query, activity, quality, and blended ranking
-- README enrichment
-- weighted blended variants
-- language and recency filter slices
+- how much latency each option adds
+- what that extra cost actually buys
+- which modes preserve the native baseline versus deliberately breaking away from it
+- when optional knobs such as README enrichment, weighted blends, recency, and language filters are worth using
 
-## Benchmark Queries
-
-The default study uses two intentionally different queries:
+The current live study uses two intentionally different benchmark queries:
 
 - `api gateway`
 - `terminal ui`
 
-Why these two:
+Those two queries are useful because they stress different failure modes. `api gateway` is noisy and infra-heavy. `terminal ui` is lexically cleaner and exposes whether a mode is adding useful semantic breadth or just drifting.
 
-- `api gateway` is noisy, infra-heavy, and useful for comparing `quality` versus `activity`.
-- `terminal ui` is lexically cleaner and useful for comparing native search against discover and README-aware ranking.
+## Executive Summary
 
-Together they stress both broad semantic expansion and tighter lexical matching.
+- Native is still the only sub-second path. In this run it stayed around `~0.5s` to `~1.1s`.
+- Quick discover adds `~15.7s` to `~18.3s` over native.
+- Balanced discover adds `~26.8s` to `~30.1s` over native.
+- Deep discover adds `~52.5s` to `~59.8s` over native.
+- README enrichment added another `~2.9s` to `~4.6s` on top of balanced discover and did not improve top-10 Jaccard overlap in either benchmark query.
+- For baseline preservation, `quality` is the best default non-native rank mode.
+- For `api gateway`, the strongest upgrade from native was `discover-balanced-blended-quality-heavy`.
+- For `terminal ui`, the strongest upgrade from native was `discover-balanced-quality`.
+- For maximum semantic expansion, `query` still introduces the most novelty, but it sheds much more of the native core.
 
-## Study Runner
+## Recommendation Matrix
 
-The harness lives at:
+| Goal | Recommended Option | Why it wins in this study | Do not choose it when... |
+| --- | --- | --- | --- |
+| Fastest safe default | `native-best-match` | It is the only consistently sub-second path and remains the reference baseline for all comparisons. | You explicitly want semantic expansion or explain-driven ranking behavior. |
+| Cheapest discover path | `discover-quick-native` | It preserves the native top 10 while showing the minimum discover-depth tax. | You need additional novelty, because quick-native bought cost without result-set change in this run. |
+| Best upgrade from native for `api gateway` | `discover-balanced-blended-quality-heavy` | It kept `8/10` of the native top 10, retained `5/5` of the native top five, and raised quality without paying deep-mode cost. | You primarily want novel repositories instead of a curated upgrade to the baseline set. |
+| Best upgrade from native for `terminal ui` | `discover-balanced-quality` | It matched the best non-native Jaccard (`0.4286`), retained `4/5` of the native top five, and was cheaper than `quality-heavy`. | You want maximum semantic drift or query-heavy expansion. |
+| Strongest semantic expansion | `discover-balanced-query` | It produced `6` novel results on both benchmark queries and maximized semantic movement within the balanced family. | You care about preserving the native core, because it kept only `1/5` of the native top five on both queries. |
+| Practical middle ground | `discover-balanced-blended` | It is often the balanced family's cheapest general mode and usually sits near the frontier between cost and novelty. | You need stronger baseline fidelity than a `0.25` to `0.3333` Jaccard result can offer. |
+| Freshest repository slice | `discover-balanced-activity --updated-within 1y` | It is the discover path if recency is more important than baseline stability. | You expect it to behave like default search. The recency slice introduced `5` to `6` novel results and materially changed the set. |
+| Language-constrained search | `native-rust` first, then `discover-balanced-blended --language Rust` only if needed | Native filtering is extremely cheap. The discover Rust slice is only useful when semantic expansion inside the language slice matters. | You want general-purpose search. The Rust slice is intentionally far from the default baseline. |
+| README-aware investigation | `--readme` only as an explicit second pass | It guarantees README evidence in explain output and can help inspect why a result matched. | You are optimizing for latency or top-10 stability. It added cost without improving top-10 overlap in this benchmark. |
+
+## Cost Ladder
+
+![Benchmark latency profile](/images/benchmark-study/latency-profile.png)
+
+![Depth overhead versus the native path](/images/benchmark-study/depth-overhead.png)
+
+![README enrichment tax](/images/benchmark-study/readme-tax.png)
+
+The latency pattern is stable enough to drive product guidance:
+
+- Native is the only low-latency mode.
+- Quick discover is already a substantial tax. Treat it as a deliberate opt-in, not a near-native fallback.
+- Balanced discover is the practical analysis tier. It is slow enough to matter, but still much cheaper than deep.
+- Deep discover is expensive enough that it should be reserved for deliberate heavy-recall workflows.
+- README enrichment is not free. In this study it added `~11%` to `~15%` on top of balanced discover while leaving top-10 overlap unchanged.
+
+Concrete overhead from this run:
+
+| Query | Quick over native | Balanced over native | Deep over native | README tax range |
+| --- | --- | --- | --- | --- |
+| `api gateway` | `+18.3s` | `+30.1s` | `+59.8s` | `+3.5s` to `+4.6s` |
+| `terminal ui` | `+15.7s` | `+26.8s` | `+52.5s` | `+2.9s` to `+3.9s` |
+
+## Balanced Decision Zone
+
+Balanced discover is where the real product tradeoffs live. It is the family most likely to be exposed as the default advanced mode, so it deserves deeper inspection than the raw run table.
+
+![Balanced-mode tradeoff map](/images/benchmark-study/balanced-tradeoff.png)
+
+![Balanced frontier map](/images/benchmark-study/balanced-pareto.png)
+
+![Baseline core retention](/images/benchmark-study/core-retention.png)
+
+![Balanced-mode surface attribution mix](/images/benchmark-study/surface-mix.png)
+
+What these views show:
+
+- `quality` and `quality-heavy` preserve the native core far better than `query`.
+- `blended` is often the cheapest balanced choice, but its top-10 fidelity is materially lower than `quality`.
+- `query` is not the best frontier choice in this run. It is dominated by cheaper alternatives with equal or better novelty tradeoffs in key cases.
+- `quality-heavy` is especially strong on `api gateway`, where it preserves the native core while improving repository quality signals.
+- The surface-mix chart explains why: `quality` leans less on repository names and more on description and topic evidence.
+
+Balanced-family frontier takeaways:
+
+- On `api gateway`, the balanced frontier includes `native`, `activity`, `quality`, `blended`, and `quality-heavy`.
+- On `terminal ui`, the balanced frontier includes `native`, `quality`, `blended`, and `query-heavy`.
+- `discover-balanced-query` is not on the balanced frontier for either benchmark query.
+- README variants are off the frontier in this run because they add cost without improving top-10 fidelity.
+
+## Ranking Mode Guidance
+
+The rank mode is the real behavior selector. Depth mostly controls cost. Rank controls what sort of repositories survive the cut.
+
+| Rank mode | What it tends to optimize | Strengths in this study | Weaknesses in this study | Best use |
+| --- | --- | --- | --- | --- |
+| `native` | Preservation of the original GitHub result set | Perfect overlap with the native baseline at any discover depth | You pay discover latency without changing the result set | Sanity checks, pipeline validation, and baseline-preserving comparisons |
+| `query` | Maximum lexical and semantic expansion | Highest novelty in balanced mode, with `6` novel results on both benchmark queries | It retained only `1/5` of the native top five on both queries | Exploratory search when broad expansion matters more than fidelity |
+| `activity` | Fresher, more active repositories | Useful when you deliberately want newer movement and more churn | It did not beat `quality` as a general default and still paid balanced latency | Recency-focused or trend-seeking workflows |
+| `quality` | Higher-quality, more established repositories | Best default non-native rank for preserving the native core while improving median stars | Less novelty than `query`, and can stay conservative | Default advanced ranking when you want better curation without losing the core set |
+| `blended` | Middle ground across query, activity, and quality | Usually one of the cheapest balanced options and often frontier-competitive | Default blended weights were weaker than `quality` for baseline preservation | General-purpose discover when you want some novelty without going full query mode |
+
+## Knob Guidance
+
+| Option | What it does | What the study says | Practical guidance |
+| --- | --- | --- | --- |
+| `--depth quick` | Reduces candidate expansion relative to balanced and deep | Still expensive over native, but much cheaper than deep | Use only when you want the cheapest discover proof point |
+| `--depth balanced` | Middle ground between recall and cost | Best general operating point for comparison, tradeoff tuning, and explain analysis | Treat this as the default experimental tier |
+| `--depth deep` | Maximum candidate expansion | Roughly doubles the balanced tax without proportional gains in these two queries | Reserve for explicit high-recall investigations |
+| `--readme` | Adds README evidence to explain and matching | Added `~3s` to `~5s` without top-10 gains in this run | Keep it as a targeted second pass, not the default |
+| `--weight-query` heavy | Pushes blended toward query-driven novelty | Helpful on `terminal ui`, where `query-heavy` reached the frontier | Use when plain blended feels too conservative |
+| `--weight-activity` heavy | Pushes blended toward recency and activity | Weak general payoff in this run | Use only with a clear freshness objective |
+| `--weight-quality` heavy | Pushes blended toward higher-quality repositories | Very strong on `api gateway`, where it became the best non-native upgrade from baseline | Good option when you want a safer upgrade than raw `query` |
+| `--updated-within 1y` | Forces recency slice | Produces high churn and should be treated as a different intent, not a small tweak | Use only when freshness is a hard requirement |
+| `--language Rust` | Narrows search to a language slice | Cheap natively, expensive under discover, and intentionally far from default search | Start with native language filtering, then add discover only if needed |
+
+## Query-Specific Findings
+
+### `api gateway`
+
+- `discover-balanced-blended-quality-heavy` was the best non-native compromise.
+- It kept `8/10` of the native top 10 and `5/5` of the native top five.
+- `discover-balanced-quality` also retained the full native top five, but with less baseline overlap than `quality-heavy`.
+- `discover-balanced-query` and `discover-balanced-blended` both delivered `6` novel results, but each kept only `1/5` of the native top five.
+- README enrichment added `+3.5s` to `+4.6s` and did not improve top-10 Jaccard.
+
+### `terminal ui`
+
+- `discover-balanced-quality` was the best non-native default.
+- It kept `4/5` of the native top five with `0.4286` Jaccard and remained cheaper than `quality-heavy`.
+- `discover-balanced-blended` sat on the frontier because it was cheaper and still delivered `5` novel results.
+- `discover-balanced-blended-query-heavy` also sat on the frontier and dominated plain `discover-balanced-query` in this run.
+- README enrichment added `+2.9s` to `+3.9s` and again did not improve top-10 Jaccard.
+
+## Churn And Stable Leaders
+
+![Scenario churn versus the native baseline](/images/benchmark-study/baseline-churn.png)
+
+![Most persistent repositories across the study](/images/benchmark-study/persistence-leaders.png)
+
+These two views help with interpretation:
+
+- The churn chart tells you which options are still "about the same search" versus which ones are effectively different products.
+- The persistence chart shows which repositories survive almost every mode and filter change.
+- Persistent leaders are especially useful for screenshots, demo flows, and explanation examples because they are less likely to disappear when the ranking strategy changes.
+
+## How To Run The Study
+
+The benchmark harness lives at:
 
 - [`scripts/benchmark-study.py`](../../scripts/benchmark-study.py)
 - [`scripts/render-benchmark-charts.py`](../../scripts/render-benchmark-charts.py)
-
-It writes raw outputs and derived analysis under:
-
-- `target/benchmark-study/`
-
-## What The Study Captures
-
-For every run, the harness records:
-
-- command scenario name and label
-- query
-- duration in milliseconds
-- total result count and returned result count
-- compiled query
-- median stars and forks in the emitted top window
-- median updated age in days
-- language diversity in the emitted top window
-- README coverage
-- explain coverage
-- per-repository scores and matched surfaces when available
-
-It also computes scenario-to-baseline comparisons against `native-best-match` for each query:
-
-- top-k overlap
-- top-k Jaccard similarity
-- number of novel results
-- average absolute rank shift among shared repositories
-
-## Run It
 
 Build the binary first if needed:
 
@@ -70,127 +164,60 @@ Build the binary first if needed:
 cargo build
 ```
 
-Then run the study:
+Run the full live study:
 
 ```bash
 python3 scripts/benchmark-study.py
 ```
 
-If you prefer an explicit output directory:
+Rebuild derived analysis from existing raw outputs:
 
 ```bash
-python3 scripts/benchmark-study.py --output-dir target/benchmark-study
+python3 scripts/benchmark-study.py --analyze-only
 ```
 
-If `GITQUARRY_TOKEN` is not already set, the script will try GitHub CLI auth before failing.
-
-To refresh the visual artifacts after the study outputs are present:
+Refresh all chart assets:
 
 ```bash
 python3 scripts/render-benchmark-charts.py
 ```
 
-The checked-in docs visuals are raster infographics derived from those chart blueprints. The SVGs remain useful as deterministic source references, while the published page uses PNG outputs.
+If `GITQUARRY_TOKEN` is not set, the runner will try to use GitHub CLI auth before failing.
 
 ## Output Files
 
-After a run, the key artifacts are:
+The study writes raw and derived artifacts to `target/benchmark-study/`.
 
-- `target/benchmark-study/report.md`
-- `target/benchmark-study/run-summaries.csv`
-- `target/benchmark-study/repo-rows.csv`
-- `target/benchmark-study/comparisons.csv`
-- `target/benchmark-study/raw/<query>/<scenario>.json`
-- `docs/images/benchmark-study/*.svg` (deterministic chart blueprints)
-- `docs/images/benchmark-study/*.png` (published raster infographics)
+Most useful outputs:
 
-## How To Read The Results
+- `run-summaries.csv`
+- `comparisons.csv`
+- `scenario-analysis.csv`
+- `paired-effects.csv`
+- `balanced-frontier.csv`
+- `repo-rows.csv`
+- `report.md`
+- `raw/<query>/<scenario>.json`
 
-Use the results in layers:
+The docs visuals are published from `docs/images/benchmark-study/` as raster PNGs, with SVG source charts generated beside them.
 
-1. Start with `report.md` for the headline differences.
-2. Use `run-summaries.csv` to compare scenario-level behavior such as latency, median stars, and readme coverage.
-3. Use `comparisons.csv` to quantify how far each scenario moved from `native-best-match`.
-4. Use `repo-rows.csv` to inspect exact rank positions, score components, and matched surfaces.
+## How To Read The Data
 
-## Interpretation Heuristics
+Use the artifacts in this order:
 
-These are the most useful contrasts:
+1. Start with `report.md` for the headline summary.
+2. Use `paired-effects.csv` for the cleanest latency-tax and delta analysis.
+3. Use `scenario-analysis.csv` for decision metrics such as core retention, surface shares, and frontier flags.
+4. Use `repo-rows.csv` when you need exact repository-level evidence, scores, and matched surfaces.
 
-- `native-best-match` vs `discover-balanced-blended`
-  - baseline product contrast
-- `discover-balanced-query` vs `discover-balanced-query-readme`
-  - README enrichment impact
-- `discover-quick-*` vs `discover-deep-*`
-  - recall-vs-cost tradeoff
-- `discover-balanced-blended` vs weighted blended variants
-  - score sensitivity to explicit user preferences
-- `native-updated-1y` vs `discover-balanced-activity-updated-1y`
-  - how recency interacts with retrieval and ranking
+## Confidence Limits
 
-## Visual Snapshot
+This is a strong directional benchmark, not a universal law.
 
-### Latency Profile
+- It uses two live queries, not a full benchmark corpus.
+- It is a single-run live benchmark against GitHub data that changes over time.
+- Latency is affected by network and GitHub response conditions.
+- The top-10 overlap metrics are decision-useful, but they do not capture every ranking-quality dimension.
+- README enrichment may pay off more on other query classes even though it did not change top-10 overlap here.
 
-![Benchmark latency profile](/images/benchmark-study/latency-profile.png)
-
-This chart makes the cost ladder obvious:
-
-- native remains effectively instant
-- quick discover is the first meaningful latency jump
-- balanced discover is the practical middle ground
-- deep discover is materially more expensive
-- README enrichment adds a visible extra cost on top of balanced discover
-
-### Churn Versus Native
-
-![Scenario churn versus the native baseline](/images/benchmark-study/baseline-churn.png)
-
-This chart is the main compare-and-contrast view for option selection:
-
-- `quality` stays closer to native than `query` or plain `blended`
-- `quality-heavy` gives the strongest non-native compromise on `api gateway`
-- Rust and recency slices are intentionally more selective and drift further from the default baseline
-
-### Persistent Repository Leaders
-
-![Most persistent repositories across the study](/images/benchmark-study/persistence-leaders.png)
-
-This chart shows which repositories keep surviving rank, depth, README, and filter changes. Those are the best candidates for examples, screenshots, and explanation in follow-up writeups.
-
-## Current Snapshot
-
-This section summarizes the completed live run executed on `2026-04-22`.
-
-High-level operational findings:
-
-- Native runs stayed sub-second for both benchmark queries, with the slowest native baseline still around `~1.1s`.
-- Quick discover runs landed around `16-19s`.
-- Balanced discover runs landed around `26-31s`.
-- Deep discover runs landed around `52-62s`.
-- Balanced discover plus README enrichment added roughly `~3-5s` on top of balanced discover.
-
-Behavioral findings for `api gateway`:
-
-- `discover-quick-native`, `discover-balanced-native`, `discover-deep-native`, and `native-updated-1y` all fully preserved the `native-best-match` top 10.
-- `discover-balanced-quality` and `discover-deep-quality` stayed meaningfully closer to the native baseline than `query` or plain `blended`.
-- `discover-balanced-blended-quality-heavy` was the strongest non-native compromise, with `8/10` overlap and a `0.6667` Jaccard score against `native-best-match`.
-- The most persistent repositories across scenarios were `apache/apisix`, `kgateway-dev/kgateway`, `kubernetes-sigs/gateway-api`, and `spring-cloud/spring-cloud-gateway`.
-
-Behavioral findings for `terminal ui`:
-
-- `discover-balanced-quality`, `discover-deep-quality`, and `discover-balanced-blended-quality-heavy` all stayed closer to the native baseline than `query`, `activity`, or plain `blended`.
-- `discover-balanced-query` still produced the biggest semantic shift among the balanced non-slice runs, with only `4/10` overlap and `6` novel results versus `native-best-match`.
-- The Rust slice stayed intentionally far from the baseline. Both `native-rust` and `discover-balanced-blended-rust` overlapped the native baseline by only `1/10`.
-- The recency slice completed successfully and remained high-churn. `discover-balanced-activity-updated-1y` overlapped the native baseline by `4/10` and introduced `6` novel repositories.
-- The most persistent repositories across scenarios were `gitui-org/gitui`, `gui-cs/Terminal.Gui`, `jesseduffield/lazygit`, and `containers/podman-tui`.
-
-Run-completion note:
-
-- Three expensive `terminal ui` scenarios initially needed staggered reruns in tmux, but the final artifact set is now complete and the regenerated report contains no exclusions.
-
-## Constraints
-
-- This is a live GitHub benchmark. Results will drift over time as repositories change.
-- The study is designed for comparison and contrast, not for freezing a permanent golden dataset.
-- Search-rate limits still apply. The runner inserts a short sleep between calls to avoid bursty traffic.
+The right way to use this study is as a decision support artifact. It is precise enough to compare mode families and tune defaults, but it should be rerun when the ranking model, GitHub corpus, or product goals materially change.

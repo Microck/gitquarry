@@ -21,6 +21,20 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_DIR = ROOT / "target" / "benchmark-study"
 DEFAULT_LIMIT = 10
 DEFAULT_QUERIES = ["api gateway", "terminal ui"]
+README_BASE_PAIRS = [
+    ("discover-balanced-query", "discover-balanced-query-readme", "query-readme-tax"),
+    ("discover-balanced-quality", "discover-balanced-quality-readme", "quality-readme-tax"),
+    ("discover-balanced-blended", "discover-balanced-blended-readme", "blended-readme-tax"),
+]
+WEIGHT_BASE_PAIRS = [
+    ("discover-balanced-blended", "discover-balanced-blended-query-heavy", "query-heavy-shift"),
+    ("discover-balanced-blended", "discover-balanced-blended-activity-heavy", "activity-heavy-shift"),
+    ("discover-balanced-blended", "discover-balanced-blended-quality-heavy", "quality-heavy-shift"),
+]
+SLICE_BASE_PAIRS = [
+    ("native-rust", "discover-balanced-blended-rust", "rust-discover-tax"),
+    ("native-updated-1y", "discover-balanced-activity-updated-1y", "updated-1y-discover-tax"),
+]
 
 
 @dataclass(frozen=True)
@@ -223,6 +237,79 @@ def parse_dt(value: str | None) -> datetime | None:
 def median_or_zero(values: list[float]) -> float:
     return statistics.median(values) if values else 0.0
 
+def to_float(value: Any, default: float = 0.0) -> float:
+    if value in ("", None):
+        return default
+    return float(value)
+
+def format_duration_ms(value: float) -> str:
+    if value >= 1000:
+        return f"{value / 1000:.1f}s"
+    return f"{int(value)}ms"
+
+def parse_scenario_metadata(scenario_name: str) -> dict[str, Any]:
+    depth = "native"
+    rank_family = "native"
+    readme_enabled = False
+    weight_profile = "default"
+    slice_profile = "default"
+
+    if scenario_name.startswith("discover-"):
+        parts = scenario_name.split("-")
+        if len(parts) >= 3:
+            depth = parts[1]
+            rank_family = parts[2]
+        readme_enabled = "readme" in parts
+        if "query-heavy" in scenario_name:
+            weight_profile = "query-heavy"
+        elif "activity-heavy" in scenario_name:
+            weight_profile = "activity-heavy"
+        elif "quality-heavy" in scenario_name:
+            weight_profile = "quality-heavy"
+        if scenario_name.endswith("-rust"):
+            slice_profile = "rust"
+        elif scenario_name.endswith("-updated-1y"):
+            slice_profile = "updated-1y"
+    else:
+        if scenario_name.endswith("-rust"):
+            slice_profile = "rust"
+        elif scenario_name.endswith("-updated-1y"):
+            slice_profile = "updated-1y"
+
+    return {
+        "depth": depth,
+        "rank_family": rank_family,
+        "readme_enabled": readme_enabled,
+        "weight_profile": weight_profile,
+        "slice_profile": slice_profile,
+    }
+
+def build_baseline_core_sets(
+    repo_rows: list[dict[str, Any]],
+    queries: list[str],
+) -> dict[str, dict[int, set[str]]]:
+    baseline_core: dict[str, dict[int, set[str]]] = {}
+    for query in queries:
+        baseline_rows = sorted(
+            [
+                row
+                for row in repo_rows
+                if row["query"] == query and row["scenario"] == "native-best-match"
+            ],
+            key=lambda item: item["rank_position"],
+        )
+        baseline_core[query] = {
+            3: {row["full_name"] for row in baseline_rows[:3]},
+            5: {row["full_name"] for row in baseline_rows[:5]},
+        }
+    return baseline_core
+
+def surface_share(surface_counts: dict[str, int], surface: str) -> float:
+    total = sum(surface_counts.values())
+    if total <= 0:
+        return 0.0
+    return round(surface_counts.get(surface, 0) / total, 4)
+
 
 def repo_row(
     *,
@@ -366,12 +453,220 @@ def summarize_run(
     }
     return summary, repo_rows
 
+def build_scenario_analysis(
+    *,
+    run_summaries: list[dict[str, Any]],
+    comparisons: list[dict[str, Any]],
+    repo_rows: list[dict[str, Any]],
+    queries: list[str],
+) -> list[dict[str, Any]]:
+    run_index = {(row["query"], row["scenario"]): row for row in run_summaries}
+    comparison_index = {(row["query"], row["scenario"]): row for row in comparisons}
+    repo_index: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in repo_rows:
+        repo_index.setdefault((row["query"], row["scenario"]), []).append(row)
+    baseline_core_sets = build_baseline_core_sets(repo_rows, queries)
+    analysis_rows: list[dict[str, Any]] = []
+
+    for summary in run_summaries:
+        baseline = run_index[(summary["query"], "native-best-match")]
+        comparison = comparison_index[(summary["query"], summary["scenario"])]
+        metadata = parse_scenario_metadata(summary["scenario"])
+        duration_ms = to_float(summary["duration_ms"])
+        baseline_duration_ms = to_float(baseline["duration_ms"])
+        added_vs_native_ms = duration_ms - baseline_duration_ms
+        scenario_repos = sorted(
+            repo_index[(summary["query"], summary["scenario"])],
+            key=lambda item: item["rank_position"],
+        )
+        scenario_repo_names = {row["full_name"] for row in scenario_repos}
+        surface_counts = summary["matched_surface_counts"]
+        if not isinstance(surface_counts, dict):
+            surface_counts = {}
+        analysis_rows.append(
+            {
+                **summary,
+                **comparison,
+                **metadata,
+                "baseline_duration_ms": int(baseline_duration_ms),
+                "added_vs_native_ms": int(added_vs_native_ms),
+                "added_vs_native_pct": round(
+                    (added_vs_native_ms / baseline_duration_ms) if baseline_duration_ms else 0.0,
+                    4,
+                ),
+                "novel_per_added_second": round(
+                    to_float(comparison["novel_results"]) / max(added_vs_native_ms / 1000.0, 0.001),
+                    4,
+                )
+                if added_vs_native_ms > 0
+                else "",
+                "jaccard_per_added_second": round(
+                    to_float(comparison["top_k_jaccard"]) / max(added_vs_native_ms / 1000.0, 0.001),
+                    6,
+                )
+                if added_vs_native_ms > 0
+                else "",
+                "core_top3_retained": len(
+                    scenario_repo_names & baseline_core_sets[summary["query"]][3]
+                ),
+                "core_top5_retained": len(
+                    scenario_repo_names & baseline_core_sets[summary["query"]][5]
+                ),
+                "core_top3_rate": round(
+                    len(scenario_repo_names & baseline_core_sets[summary["query"]][3]) / 3,
+                    4,
+                ),
+                "core_top5_rate": round(
+                    len(scenario_repo_names & baseline_core_sets[summary["query"]][5]) / 5,
+                    4,
+                ),
+                "surface_breadth": len(surface_counts),
+                "surface_name_share": surface_share(surface_counts, "name"),
+                "surface_description_share": surface_share(surface_counts, "description"),
+                "surface_topics_share": surface_share(surface_counts, "topics"),
+                "surface_readme_share": surface_share(surface_counts, "readme"),
+            }
+        )
+
+    for row in analysis_rows:
+        row["balanced_general_frontier"] = False
+
+    for query in queries:
+        frontier_candidates = [
+            row
+            for row in analysis_rows
+            if row["query"] == query
+            and row["group"] == "discover"
+            and row["depth"] == "balanced"
+            and not row["readme_enabled"]
+            and row["slice_profile"] == "default"
+        ]
+        for candidate in frontier_candidates:
+            candidate_duration = to_float(candidate["duration_ms"])
+            candidate_jaccard = to_float(candidate["top_k_jaccard"])
+            candidate_novel = to_float(candidate["novel_results"])
+            dominated = False
+            for other in frontier_candidates:
+                if other is candidate:
+                    continue
+                other_duration = to_float(other["duration_ms"])
+                other_jaccard = to_float(other["top_k_jaccard"])
+                other_novel = to_float(other["novel_results"])
+                if (
+                    other_duration <= candidate_duration
+                    and other_jaccard >= candidate_jaccard
+                    and other_novel >= candidate_novel
+                    and (
+                        other_duration < candidate_duration
+                        or other_jaccard > candidate_jaccard
+                        or other_novel > candidate_novel
+                    )
+                ):
+                    dominated = True
+                    break
+            candidate["balanced_general_frontier"] = not dominated
+
+    return analysis_rows
+
+def build_paired_effects(
+    *,
+    run_summaries: list[dict[str, Any]],
+    comparisons: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    run_index = {(row["query"], row["scenario"]): row for row in run_summaries}
+    comparison_index = {(row["query"], row["scenario"]): row for row in comparisons}
+    effect_rows: list[dict[str, Any]] = []
+
+    def append_effect(
+        *,
+        query: str,
+        effect_type: str,
+        base_scenario: str,
+        compare_scenario: str,
+        label: str,
+    ) -> None:
+        base_run = run_index[(query, base_scenario)]
+        compare_run = run_index[(query, compare_scenario)]
+        base_comparison = comparison_index[(query, base_scenario)]
+        compare_comparison = comparison_index[(query, compare_scenario)]
+        base_duration_ms = to_float(base_run["duration_ms"])
+        compare_duration_ms = to_float(compare_run["duration_ms"])
+        effect_rows.append(
+            {
+                "query": query,
+                "effect_type": effect_type,
+                "label": label,
+                "base_scenario": base_scenario,
+                "compare_scenario": compare_scenario,
+                "base_duration_ms": int(base_duration_ms),
+                "compare_duration_ms": int(compare_duration_ms),
+                "added_ms": int(compare_duration_ms - base_duration_ms),
+                "added_pct": round(
+                    ((compare_duration_ms - base_duration_ms) / base_duration_ms) if base_duration_ms else 0.0,
+                    4,
+                ),
+                "base_jaccard": base_comparison["top_k_jaccard"],
+                "compare_jaccard": compare_comparison["top_k_jaccard"],
+                "jaccard_delta": round(
+                    to_float(compare_comparison["top_k_jaccard"]) - to_float(base_comparison["top_k_jaccard"]),
+                    4,
+                ),
+                "base_novel_results": base_comparison["novel_results"],
+                "compare_novel_results": compare_comparison["novel_results"],
+                "novel_results_delta": int(to_float(compare_comparison["novel_results"]) - to_float(base_comparison["novel_results"])),
+                "base_median_stars": base_run["median_stars"],
+                "compare_median_stars": compare_run["median_stars"],
+                "median_stars_delta": round(
+                    to_float(compare_run["median_stars"]) - to_float(base_run["median_stars"]),
+                    3,
+                ),
+            }
+        )
+
+    for query in DEFAULT_QUERIES:
+        for depth in ("quick", "balanced", "deep"):
+            append_effect(
+                query=query,
+                effect_type="depth-over-native",
+                base_scenario="native-best-match",
+                compare_scenario=f"discover-{depth}-native",
+                label=f"{depth}-native-over-baseline",
+            )
+        for base_scenario, compare_scenario, label in README_BASE_PAIRS:
+            append_effect(
+                query=query,
+                effect_type="readme-tax",
+                base_scenario=base_scenario,
+                compare_scenario=compare_scenario,
+                label=label,
+            )
+        for base_scenario, compare_scenario, label in WEIGHT_BASE_PAIRS:
+            append_effect(
+                query=query,
+                effect_type="weighting-shift",
+                base_scenario=base_scenario,
+                compare_scenario=compare_scenario,
+                label=label,
+            )
+        for base_scenario, compare_scenario, label in SLICE_BASE_PAIRS:
+            append_effect(
+                query=query,
+                effect_type="slice-tax",
+                base_scenario=base_scenario,
+                compare_scenario=compare_scenario,
+                label=label,
+            )
+
+    return effect_rows
+
 
 def render_report(
     *,
     run_summaries: list[dict[str, Any]],
     repo_rows: list[dict[str, Any]],
     comparisons: list[dict[str, Any]],
+    scenario_analysis: list[dict[str, Any]],
+    paired_effects: list[dict[str, Any]],
     queries: list[str],
     missing_artifacts: list[str],
     scenario_count: int,
@@ -411,6 +706,13 @@ def render_report(
         query_runs = [row for row in run_summaries if row["query"] == query]
         query_results = [row for row in repo_rows if row["query"] == query]
         query_comparisons = [row for row in comparisons if row["query"] == query]
+        query_analysis = [row for row in scenario_analysis if row["query"] == query]
+        analysis_index = {row["scenario"]: row for row in query_analysis}
+        effect_index = {
+            (row["effect_type"], row["label"]): row
+            for row in paired_effects
+            if row["query"] == query
+        }
         lines.extend([f"## Query: `{query}`", ""])
 
         fastest = sorted(query_runs, key=lambda row: row["duration_ms"])[:5]
@@ -419,6 +721,15 @@ def render_report(
         for row in fastest:
             lines.append(
                 f"- `{row['scenario']}`: {row['duration_ms']} ms, median stars {row['median_stars']}, language diversity {row['language_diversity']}"
+            )
+        lines.append("")
+
+        lines.append("### Added Latency vs `native-best-match`")
+        lines.append("")
+        for depth in ("quick", "balanced", "deep"):
+            effect = effect_index[("depth-over-native", f"{depth}-native-over-baseline")]
+            lines.append(
+                f"- `{effect['compare_scenario']}` adds {format_duration_ms(to_float(effect['added_ms']))} over native best-match"
             )
         lines.append("")
 
@@ -449,6 +760,88 @@ def render_report(
                     f"- `{row['scenario']}`: readme coverage {row['readme_coverage']:.2%}, median stars {row['median_stars']}, duration {row['duration_ms']} ms"
                 )
             lines.append("")
+
+        lines.append("### README Tax")
+        lines.append("")
+        for _, _, label in README_BASE_PAIRS:
+            effect = effect_index[("readme-tax", label)]
+            lines.append(
+                f"- `{effect['compare_scenario']}` adds {format_duration_ms(to_float(effect['added_ms']))} over `{effect['base_scenario']}` with Jaccard delta {effect['jaccard_delta']:+.4f}"
+            )
+        lines.append("")
+
+        frontier_rows = [
+            row
+            for row in query_analysis
+            if row.get("balanced_general_frontier")
+        ]
+        lines.append("### Balanced Frontier")
+        lines.append("")
+        for row in sorted(
+            frontier_rows,
+            key=lambda item: (
+                to_float(item["duration_ms"]),
+                -to_float(item["top_k_jaccard"]),
+                -to_float(item["novel_results"]),
+            ),
+        ):
+            lines.append(
+                f"- `{row['scenario']}`: {format_duration_ms(to_float(row['duration_ms']))}, Jaccard {to_float(row['top_k_jaccard']):.4f}, novel {int(to_float(row['novel_results']))}, retains {int(to_float(row['core_top5_retained']))}/5 of the native top five"
+            )
+        lines.append("")
+
+        balanced_focus = [
+            analysis_index[name]
+            for name in (
+                "discover-balanced-query",
+                "discover-balanced-activity",
+                "discover-balanced-quality",
+                "discover-balanced-blended",
+                "discover-balanced-blended-quality-heavy",
+            )
+            if name in analysis_index
+        ]
+        lines.append("### Balanced Tradeoff Snapshot")
+        lines.append("")
+        for row in balanced_focus:
+            lines.append(
+                f"- `{row['scenario']}`: {format_duration_ms(to_float(row['duration_ms']))}, Jaccard {to_float(row['top_k_jaccard']):.4f}, novel {int(to_float(row['novel_results']))}, median stars {to_float(row['median_stars']):.1f}"
+            )
+        lines.append("")
+
+        lines.append("### Core Retention Snapshot")
+        lines.append("")
+        for row in balanced_focus:
+            lines.append(
+                f"- `{row['scenario']}`: retains {int(to_float(row['core_top3_retained']))}/3 of the native top three and {int(to_float(row['core_top5_retained']))}/5 of the native top five"
+            )
+        lines.append("")
+
+        lines.append("### Surface Attribution Snapshot")
+        lines.append("")
+        for row in balanced_focus:
+            lines.append(
+                f"- `{row['scenario']}`: name {to_float(row['surface_name_share']) * 100:.0f}%, description {to_float(row['surface_description_share']) * 100:.0f}%, topics {to_float(row['surface_topics_share']) * 100:.0f}%, README {to_float(row['surface_readme_share']) * 100:.0f}%"
+            )
+        lines.append("")
+
+        best_preserver = max(
+            balanced_focus,
+            key=lambda row: (to_float(row["top_k_jaccard"]), -to_float(row["duration_ms"])),
+        )
+        best_explorer = max(
+            balanced_focus,
+            key=lambda row: (to_float(row["novel_results"]), -to_float(row["top_k_jaccard"])),
+        )
+        lines.append("### Recommendation Snapshot")
+        lines.append("")
+        lines.append(
+            f"- Preserve the native baseline: `{best_preserver['scenario']}` with Jaccard {to_float(best_preserver['top_k_jaccard']):.4f} at {format_duration_ms(to_float(best_preserver['duration_ms']))}"
+        )
+        lines.append(
+            f"- Maximize novel results within balanced discover: `{best_explorer['scenario']}` with {int(to_float(best_explorer['novel_results']))} novel results at {format_duration_ms(to_float(best_explorer['duration_ms']))}"
+        )
+        lines.append("")
 
         top_repo_counts: dict[str, int] = {}
         for row in query_results:
@@ -687,9 +1080,26 @@ def main() -> None:
                 }
             )
 
+    scenario_analysis = build_scenario_analysis(
+        run_summaries=run_summaries,
+        comparisons=comparisons,
+        repo_rows=repo_rows,
+        queries=queries,
+    )
+    paired_effects = build_paired_effects(
+        run_summaries=run_summaries,
+        comparisons=comparisons,
+    )
+    balanced_frontier = [
+        row for row in scenario_analysis if row.get("balanced_general_frontier")
+    ]
+
     write_csv(output_dir / "run-summaries.csv", run_summaries)
     write_csv(output_dir / "repo-rows.csv", repo_rows)
     write_csv(output_dir / "comparisons.csv", comparisons)
+    write_csv(output_dir / "scenario-analysis.csv", scenario_analysis)
+    write_csv(output_dir / "paired-effects.csv", paired_effects)
+    write_csv(output_dir / "balanced-frontier.csv", balanced_frontier)
     (output_dir / "run-summaries.json").write_text(
         json.dumps(run_summaries, indent=2) + "\n",
         encoding="utf-8",
@@ -698,11 +1108,25 @@ def main() -> None:
         json.dumps(comparisons, indent=2) + "\n",
         encoding="utf-8",
     )
+    (output_dir / "scenario-analysis.json").write_text(
+        json.dumps(scenario_analysis, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (output_dir / "paired-effects.json").write_text(
+        json.dumps(paired_effects, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (output_dir / "balanced-frontier.json").write_text(
+        json.dumps(balanced_frontier, indent=2) + "\n",
+        encoding="utf-8",
+    )
     (output_dir / "report.md").write_text(
         render_report(
             run_summaries=run_summaries,
             repo_rows=repo_rows,
             comparisons=comparisons,
+            scenario_analysis=scenario_analysis,
+            paired_effects=paired_effects,
             queries=queries,
             missing_artifacts=missing_artifacts,
             scenario_count=len(selected_scenarios),
