@@ -423,7 +423,9 @@ fn use_color(color: ColorPreference) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{render_csv, write_repo_block, write_repo_detail};
-    use crate::model::{ColorPreference, ExplainScore, LicenseInfo, Owner, ReleaseSummary, Repository, ScoreWeights};
+    use crate::model::{
+        ColorPreference, ExplainScore, LicenseInfo, Owner, ReleaseSummary, Repository, ScoreWeights,
+    };
     use chrono::{TimeZone, Utc};
 
     fn repo() -> Repository {

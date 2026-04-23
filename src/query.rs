@@ -519,7 +519,9 @@ pub fn discovery_target(depth: DiscoveryDepth, limit: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_post_filters, build_search_plan, compiled_query_has_qualifier, discovery_target};
+    use super::{
+        apply_post_filters, build_search_plan, compiled_query_has_qualifier, discovery_target,
+    };
     use crate::cli::SearchArgs;
     use crate::model::{
         DiscoveryDepth, OutputFormat, Owner, ProgressMode, RankMode, Repository, RetrievalMode,
@@ -825,7 +827,10 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(err.code, "E_FLAG_CONFLICT");
-        assert!(err.message.contains("min stars cannot be greater than max stars"));
+        assert!(
+            err.message
+                .contains("min stars cannot be greater than max stars")
+        );
     }
 
     #[test]
@@ -844,7 +849,10 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(err.code, "E_FLAG_CONFLICT");
-        assert!(err.message.contains("--created-after cannot be later than --created-before"));
+        assert!(
+            err.message
+                .contains("--created-after cannot be later than --created-before")
+        );
     }
 
     #[test]
@@ -863,7 +871,10 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(err.code, "E_FLAG_CONFLICT");
-        assert!(err.message.contains("--pushed-after cannot be combined with --pushed-within"));
+        assert!(
+            err.message
+                .contains("--pushed-after cannot be combined with --pushed-within")
+        );
     }
 
     #[test]
@@ -882,7 +893,10 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(err.code, "E_FLAG_CONFLICT");
-        assert!(err.message.contains("relative duration must end with h, d, w, m, or y"));
+        assert!(
+            err.message
+                .contains("relative duration must end with h, d, w, m, or y")
+        );
     }
 
     #[test]
@@ -948,7 +962,10 @@ mod tests {
     fn apply_post_filters_respects_updated_range_bounds() {
         let repos = vec![
             repo("early", Utc.with_ymd_and_hms(2026, 4, 1, 0, 0, 0).unwrap()),
-            repo("middle", Utc.with_ymd_and_hms(2026, 4, 10, 0, 0, 0).unwrap()),
+            repo(
+                "middle",
+                Utc.with_ymd_and_hms(2026, 4, 10, 0, 0, 0).unwrap(),
+            ),
             repo("late", Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap()),
         ];
         let filters = super::PostFilters {

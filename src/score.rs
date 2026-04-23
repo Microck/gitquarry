@@ -392,7 +392,11 @@ mod tests {
         assert_eq!(repos[0].name, "query-match");
         let explain = repos[0].explain.as_ref().unwrap();
         assert_eq!(explain.weights.as_ref().unwrap().activity, 0.0);
-        assert!(explain.matched_surfaces.contains(&"description".to_string()));
+        assert!(
+            explain
+                .matched_surfaces
+                .contains(&"description".to_string())
+        );
     }
 
     #[test]
