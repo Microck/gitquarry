@@ -80,7 +80,7 @@ Balanced discover is where the real product tradeoffs live. It is the family mos
 
 ![Balanced-mode surface attribution mix](/images/benchmark-study/surface-mix.png)
 
-These PNGs are the polished showcase layer for the docs site. The exact audit trail for values and scenario comparisons still lives in `report.md`, `paired-effects.csv`, and `scenario-analysis.csv`.
+These charts are rendered directly from the benchmark CSV artifacts for the docs site. The exact audit trail for values and scenario comparisons still lives in `report.md`, `paired-effects.csv`, and `scenario-analysis.csv`.
 
 What these views show:
 
@@ -159,7 +159,6 @@ The benchmark harness lives at:
 
 - [`scripts/benchmark-study.py`](../../scripts/benchmark-study.py)
 - [`scripts/render-benchmark-charts.py`](../../scripts/render-benchmark-charts.py)
-- [`scripts/generate-benchmark-showcase.py`](../../scripts/generate-benchmark-showcase.py)
 
 Build the binary first if needed:
 
@@ -182,13 +181,7 @@ python3 scripts/benchmark-study.py --analyze-only
 Refresh all chart assets:
 
 ```bash
-python3 scripts/render-benchmark-charts.py
-```
-
-Refresh the published showcase PNGs with `egaki` from the deterministic SVG blueprints:
-
-```bash
-python3 scripts/generate-benchmark-showcase.py
+uv run scripts/render-benchmark-charts.py
 ```
 
 If `GITQUARRY_TOKEN` is not set, the runner will try to use GitHub CLI auth before failing.
@@ -235,7 +228,7 @@ Most useful outputs:
 - `report.md`
 - `raw/<query>/<scenario>.json`
 
-The docs visuals are published from `docs/images/benchmark-study/` as `egaki`-generated PNG showcase infographics, with deterministic SVG source charts generated beside them for rerendering and auditability. The CSV and markdown artifacts remain the exact source of truth for benchmark values.
+The docs visuals are published from `docs/images/benchmark-study/` as direct `Altair` and `Vega-Lite` renders in both SVG and high-resolution PNG form. The CSV and markdown artifacts remain the exact source of truth for benchmark values.
 
 ## How To Read The Data
 

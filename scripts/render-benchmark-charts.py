@@ -1,19 +1,25 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# dependencies = [
+#   "altair==5.5.0",
+#   "pandas==2.2.3",
+#   "vl-convert-python==1.7.0",
+# ]
+# ///
+
 from __future__ import annotations
 
 import argparse
-import csv
-import html
-import shutil
-import subprocess
-from collections import Counter
 from pathlib import Path
 
+import altair as alt
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_STUDY_DIR = ROOT / "target" / "benchmark-study"
 DEFAULT_OUTPUT_DIR = ROOT / "docs" / "images" / "benchmark-study"
-PNG_DENSITY = 288
-
+PNG_PPI = 200
+PNG_SCALE_FACTOR = 2
 
 LATENCY_SCENARIOS = [
     "native-best-match",
@@ -55,27 +61,39 @@ BALANCED_PARETO_SCENARIOS = [
 ]
 
 SCENARIO_LABELS = {
-    "native-best-match": "native best-match",
-    "discover-quick-native": "discover quick native",
-    "discover-balanced-native": "discover balanced native",
-    "discover-deep-native": "discover deep native",
-    "discover-balanced-query-readme": "balanced query + README",
-    "discover-balanced-query": "balanced query",
-    "discover-balanced-activity": "balanced activity",
-    "discover-balanced-quality": "balanced quality",
-    "discover-balanced-blended": "balanced blended",
-    "discover-balanced-blended-query-heavy": "balanced blended query-heavy",
-    "discover-balanced-blended-activity-heavy": "balanced blended activity-heavy",
-    "discover-balanced-blended-quality-heavy": "balanced blended quality-heavy",
-    "discover-balanced-activity-updated-1y": "balanced activity + updated 1y",
-    "discover-balanced-blended-rust": "balanced blended + rust",
+    "native-best-match": "Native baseline",
+    "discover-quick-native": "Quick native",
+    "discover-balanced-native": "Balanced native",
+    "discover-deep-native": "Deep native",
+    "discover-balanced-query-readme": "Balanced query + README",
+    "discover-balanced-query": "Balanced query",
+    "discover-balanced-activity": "Balanced activity",
+    "discover-balanced-quality": "Balanced quality",
+    "discover-balanced-blended": "Balanced blended",
+    "discover-balanced-blended-query-heavy": "Query-heavy blend",
+    "discover-balanced-blended-activity-heavy": "Activity-heavy blend",
+    "discover-balanced-blended-quality-heavy": "Quality-heavy blend",
+    "discover-balanced-activity-updated-1y": "Activity + updated 1y",
+    "discover-balanced-blended-rust": "Blended + Rust",
+}
+
+SCATTER_SHORT_LABELS = {
+    "discover-balanced-query": "Query",
+    "discover-balanced-activity": "Activity",
+    "discover-balanced-quality": "Quality",
+    "discover-balanced-blended": "Blended",
+    "discover-balanced-blended-query-heavy": "Q-heavy",
+    "discover-balanced-blended-quality-heavy": "Quality-heavy",
+    "discover-balanced-activity-updated-1y": "Updated 1y",
+    "discover-balanced-blended-rust": "Rust",
+    "discover-balanced-native": "Native",
 }
 
 SCENARIO_COLORS = {
-    "native-best-match": "#0f172a",
+    "native-best-match": "#111827",
     "discover-quick-native": "#2563eb",
     "discover-balanced-native": "#0f766e",
-    "discover-deep-native": "#b45309",
+    "discover-deep-native": "#c2410c",
     "discover-balanced-query-readme": "#dc2626",
     "discover-balanced-query": "#ea580c",
     "discover-balanced-activity": "#16a34a",
@@ -85,758 +103,673 @@ SCENARIO_COLORS = {
     "discover-balanced-blended-activity-heavy": "#15803d",
     "discover-balanced-blended-quality-heavy": "#1d4ed8",
     "discover-balanced-activity-updated-1y": "#b91c1c",
-    "discover-balanced-blended-rust": "#9a3412",
+    "discover-balanced-blended-rust": "#92400e",
 }
 
+SURFACE_COLORS = {
+    "name": "#94a3b8",
+    "description": "#2563eb",
+    "topics": "#0f766e",
+    "readme": "#dc2626",
+}
 
-def load_csv(path: Path) -> list[dict[str, str]]:
-    with path.open("r", encoding="utf-8", newline="") as handle:
-        return list(csv.DictReader(handle))
+QUERY_COLORS = {
+    "api gateway": "#2563eb",
+    "terminal ui": "#0f766e",
+}
+
+TRADEOFF_LABEL_OFFSETS = {
+    ("api gateway", "discover-balanced-query"): (0.22, 0.0),
+    ("api gateway", "discover-balanced-activity"): (0.22, 0.005),
+    ("api gateway", "discover-balanced-quality"): (0.22, 0.005),
+    ("api gateway", "discover-balanced-blended"): (0.22, -0.008),
+    ("api gateway", "discover-balanced-blended-quality-heavy"): (0.22, 0.0),
+    ("terminal ui", "discover-balanced-query"): (0.18, 0.0),
+    ("terminal ui", "discover-balanced-activity"): (0.18, -0.01),
+    ("terminal ui", "discover-balanced-quality"): (0.18, 0.0),
+    ("terminal ui", "discover-balanced-blended"): (0.18, -0.012),
+    ("terminal ui", "discover-balanced-blended-quality-heavy"): (0.18, 0.0),
+}
+
+CHURN_LABEL_OFFSETS = {
+    ("api gateway", "discover-balanced-query"): (0.03, 0.0),
+    ("api gateway", "discover-balanced-activity"): (0.03, 0.0),
+    ("api gateway", "discover-balanced-quality"): (0.03, 0.05),
+    ("api gateway", "discover-balanced-blended"): (0.03, -0.05),
+    ("api gateway", "discover-balanced-blended-quality-heavy"): (0.03, 0.0),
+    ("api gateway", "discover-balanced-activity-updated-1y"): (0.03, 0.0),
+    ("api gateway", "discover-balanced-blended-rust"): (0.025, 0.0),
+    ("terminal ui", "discover-balanced-query"): (0.03, 0.0),
+    ("terminal ui", "discover-balanced-activity"): (0.03, -0.04),
+    ("terminal ui", "discover-balanced-quality"): (0.03, 0.03),
+    ("terminal ui", "discover-balanced-blended"): (0.03, 0.0),
+    ("terminal ui", "discover-balanced-blended-quality-heavy"): (0.03, 0.0),
+    ("terminal ui", "discover-balanced-activity-updated-1y"): (0.03, 0.0),
+    ("terminal ui", "discover-balanced-blended-rust"): (0.025, 0.0),
+}
+
+FONT_FAMILY = "Mona Sans, DejaVu Sans, Arial, sans-serif"
+TITLE_FONT_FAMILY = "Monaspace Neon, Mona Sans, DejaVu Sans Mono, monospace"
+BACKGROUND = "#f6f7fb"
+PANEL_BACKGROUND = "#ffffff"
+GRID_COLOR = "#d7dee8"
+AXIS_COLOR = "#475569"
+TITLE_COLOR = "#0f172a"
+SUBTITLE_COLOR = "#475569"
 
 
-def ensure_dir(path: Path) -> None:
-    path.mkdir(parents=True, exist_ok=True)
+def load_csv(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        raise SystemExit(f"Missing benchmark artifact: {path}")
+    return pd.read_csv(path)
 
 
-def escape(value: object) -> str:
-    return html.escape(str(value), quote=True)
+def scenario_label(scenario: str) -> str:
+    return SCENARIO_LABELS.get(scenario, scenario.replace("-", " ").title())
 
 
-def svg_text(
-    x: float,
-    y: float,
-    text: str,
+def query_label(query: str) -> str:
+    return query.title()
+
+
+def seconds_label(value: float) -> str:
+    return f"{value:.1f}s"
+
+
+def percent_label(value: float) -> str:
+    return f"{value * 100:.0f}%"
+
+
+def add_offset_columns(
+    data: pd.DataFrame,
     *,
-    size: int = 16,
-    weight: int = 400,
-    fill: str = "#0f172a",
-    anchor: str = "start",
-) -> str:
-    return (
-        f'<text x="{x:.1f}" y="{y:.1f}" font-family="Mona Sans, Inter, sans-serif" '
-        f'font-size="{size}" font-weight="{weight}" fill="{fill}" '
-        f'text-anchor="{anchor}">{escape(text)}</text>'
+    offset_map: dict[tuple[str, str], tuple[float, float]],
+    x_field: str,
+    y_field: str,
+) -> pd.DataFrame:
+    adjusted = data.copy()
+    offsets = adjusted.apply(
+        lambda row: offset_map.get((str(row["query"]), str(row["scenario"])), (0.0, 0.0)),
+        axis=1,
     )
+    adjusted["label_x"] = adjusted[x_field] + offsets.map(lambda item: item[0])
+    adjusted["label_y"] = adjusted[y_field] + offsets.map(lambda item: item[1])
+    return adjusted
 
 
-def svg_rect(
-    x: float,
-    y: float,
-    width: float,
-    height: float,
-    *,
-    fill: str,
-    rx: float = 0,
-    stroke: str | None = None,
-    stroke_width: float = 0,
-    opacity: float | None = None,
-) -> str:
-    attrs = [
-        f'x="{x:.1f}"',
-        f'y="{y:.1f}"',
-        f'width="{width:.1f}"',
-        f'height="{height:.1f}"',
-        f'fill="{fill}"',
-    ]
-    if rx:
-        attrs.append(f'rx="{rx:.1f}"')
-    if stroke:
-        attrs.append(f'stroke="{stroke}"')
-        attrs.append(f'stroke-width="{stroke_width:.1f}"')
-    if opacity is not None:
-        attrs.append(f'opacity="{opacity:.3f}"')
-    return f"<rect {' '.join(attrs)} />"
+def base_chart(data: pd.DataFrame, *, width: int, height: int) -> alt.Chart:
+    return alt.Chart(data).properties(width=width, height=height)
 
 
-def svg_line(
-    x1: float,
-    y1: float,
-    x2: float,
-    y2: float,
-    *,
-    stroke: str,
-    stroke_width: float = 1,
-    opacity: float = 1,
-) -> str:
+def save_chart(chart: alt.TopLevelMixin, output_dir: Path, basename: str) -> None:
+    svg_path = output_dir / f"{basename}.svg"
+    png_path = output_dir / f"{basename}.png"
+    chart.save(str(svg_path))
+    chart.save(str(png_path), ppi=PNG_PPI, scale_factor=PNG_SCALE_FACTOR)
+
+
+def style_chart(chart: alt.TopLevelMixin, title: str, subtitle: str) -> alt.TopLevelMixin:
     return (
-        f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
-        f'stroke="{stroke}" stroke-width="{stroke_width:.1f}" opacity="{opacity:.3f}" />'
-    )
-
-
-def panel_bar_chart(
-    *,
-    x: float,
-    y: float,
-    width: float,
-    title: str,
-    subtitle: str,
-    rows: list[dict[str, object]],
-    value_formatter,
-    scale_max: float,
-    scale_ticks: list[float],
-) -> str:
-    parts: list[str] = []
-    panel_height = 114 + (len(rows) * 56)
-    parts.append(
-        svg_rect(
-            x,
-            y,
-            width,
-            panel_height,
-            fill="#f8fafc",
-            stroke="#cbd5e1",
-            stroke_width=1,
-            rx=24,
+        chart.properties(
+            title=alt.TitleParams(
+                text=title,
+                subtitle=subtitle,
+            )
+        )
+        .configure_view(stroke=None, fill=PANEL_BACKGROUND)
+        .configure(background=BACKGROUND)
+        .configure_title(
+            font=TITLE_FONT_FAMILY,
+            fontSize=22,
+            color=TITLE_COLOR,
+            subtitleColor=SUBTITLE_COLOR,
+            subtitleFont=FONT_FAMILY,
+            subtitleFontSize=13,
+            anchor="start",
+            dx=8,
+            dy=-4,
+        )
+        .configure_header(
+            titleFont=TITLE_FONT_FAMILY,
+            titleFontSize=16,
+            labelFont=FONT_FAMILY,
+            labelFontSize=13,
+            titleColor=TITLE_COLOR,
+            labelColor=AXIS_COLOR,
+            labelPadding=8,
+        )
+        .configure_axis(
+            labelFont=FONT_FAMILY,
+            titleFont=FONT_FAMILY,
+            labelColor=AXIS_COLOR,
+            titleColor=AXIS_COLOR,
+            gridColor=GRID_COLOR,
+            gridOpacity=0.75,
+            domainColor="#c7d2e0",
+            tickColor="#c7d2e0",
+            labelFontSize=12,
+            titleFontSize=12,
+            titlePadding=10,
+        )
+        .configure_legend(
+            labelFont=FONT_FAMILY,
+            titleFont=FONT_FAMILY,
+            labelColor=AXIS_COLOR,
+            titleColor=AXIS_COLOR,
+            symbolType="circle",
+            symbolSize=120,
+            orient="top",
+            padding=6,
+            offset=8,
         )
     )
-    parts.append(svg_text(x + 28, y + 40, title, size=26, weight=700))
-    parts.append(svg_text(x + 28, y + 68, subtitle, size=14, fill="#475569"))
-
-    label_x = x + 28
-    chart_x = x + 260
-    value_x = x + width - 26
-    bar_width = width - 332
-    top = y + 104
-
-    for tick in scale_ticks:
-        tx = chart_x + ((tick / scale_max) * bar_width)
-        parts.append(svg_line(tx, top - 8, tx, top + (len(rows) * 56) - 20, stroke="#cbd5e1", opacity=0.55))
-        parts.append(svg_text(tx, top - 18, value_formatter(tick), size=12, fill="#64748b", anchor="middle"))
-
-    for index, row in enumerate(rows):
-        row_y = top + (index * 56)
-        bar_y = row_y - 18
-        value = float(row["value"])
-        color = str(row["color"])
-        label = str(row["label"])
-
-        parts.append(svg_text(label_x, row_y, label, size=14, fill="#0f172a"))
-        parts.append(svg_rect(chart_x, bar_y, bar_width, 22, fill="#e2e8f0", rx=11))
-        parts.append(svg_rect(chart_x, bar_y, (value / scale_max) * bar_width, 22, fill=color, rx=11))
-        parts.append(svg_text(value_x, row_y, value_formatter(value), size=14, fill="#0f172a", anchor="end"))
-
-    return "".join(parts)
 
 
-def write_svg(path: Path, width: int, height: int, body: str) -> None:
-    path.write_text(
-        "\n".join(
-            [
-                f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img">',
-                svg_rect(0, 0, width, height, fill="#ffffff"),
-                body,
-                "</svg>",
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+def build_latency_chart(run_summaries: pd.DataFrame, output_dir: Path) -> None:
+    data = run_summaries[run_summaries["scenario"].isin(LATENCY_SCENARIOS)].copy()
+    data["query_label"] = data["query"].map(query_label)
+    data["scenario_label"] = data["scenario"].map(scenario_label)
+    data["duration_s"] = data["duration_ms"] / 1000
+    data["value_label"] = data["duration_s"].map(seconds_label)
 
-
-def rasterize_svg(path: Path) -> None:
-    convert = shutil.which("convert")
-    if not convert:
-        return
-    subprocess.run(
-        [
-            convert,
-            "-background",
-            "white",
-            "-density",
-            str(PNG_DENSITY),
-            str(path),
-            "-alpha",
-            "remove",
-            "-alpha",
-            "off",
-            str(path.with_suffix(".png")),
+    chart = base_chart(data, width=390, height=180)
+    bars = chart.mark_bar(cornerRadiusEnd=8, size=28).encode(
+        y=alt.Y(
+            "scenario_label:N",
+            sort=[scenario_label(item) for item in LATENCY_SCENARIOS],
+            title=None,
+        ),
+        x=alt.X("duration_s:Q", title="Wall time (seconds)"),
+        color=alt.Color(
+            "scenario:N",
+            scale=alt.Scale(
+                domain=list(SCENARIO_COLORS.keys()),
+                range=list(SCENARIO_COLORS.values()),
+            ),
+            legend=None,
+        ),
+        tooltip=[
+            alt.Tooltip("query_label:N", title="Query"),
+            alt.Tooltip("scenario_label:N", title="Scenario"),
+            alt.Tooltip("duration_s:Q", title="Duration (s)", format=".2f"),
         ],
-        check=True,
+    )
+    labels = chart.mark_text(
+        align="left",
+        baseline="middle",
+        dx=8,
+        color=TITLE_COLOR,
+        font=FONT_FAMILY,
+        fontSize=12,
+        fontWeight=600,
+    ).encode(
+        y=alt.Y("scenario_label:N", sort=[scenario_label(item) for item in LATENCY_SCENARIOS]),
+        x=alt.X("duration_s:Q"),
+        text="value_label:N",
     )
 
-def short_balanced_label(scenario: str) -> str:
-    label_map = {
-        "discover-balanced-native": "native",
-        "discover-balanced-query": "query",
-        "discover-balanced-activity": "activity",
-        "discover-balanced-quality": "quality",
-        "discover-balanced-blended": "blended",
-        "discover-balanced-blended-query-heavy": "q-heavy",
-        "discover-balanced-blended-activity-heavy": "a-heavy",
-        "discover-balanced-blended-quality-heavy": "qual-heavy",
-    }
-    return label_map.get(scenario, scenario)
+    faceted = alt.layer(bars, labels).facet(
+        column=alt.Column("query_label:N", title=None, sort=[query_label(item) for item in PERSISTENCE_QUERIES])
+    )
+    chart_out = style_chart(
+        faceted,
+        "Latency profile",
+        "Native remains the only sub-second path. Balanced is the main analysis tier and deep roughly doubles that tax.",
+    )
+    save_chart(chart_out, output_dir, "latency-profile")
 
 
-def build_latency_chart(run_summaries: list[dict[str, str]], output_dir: Path) -> None:
-    width = 1560
-    panel_width = 730
-    panels: list[str] = []
-    for index, query in enumerate(PERSISTENCE_QUERIES):
-        rows = []
-        by_scenario = {
-            row["scenario"]: row
-            for row in run_summaries
-            if row["query"] == query and row["scenario"] in LATENCY_SCENARIOS
+def build_depth_overhead_chart(paired_effects: pd.DataFrame, output_dir: Path) -> None:
+    data = paired_effects[paired_effects["effect_type"] == "depth-over-native"].copy()
+    depth_order = ["quick", "balanced", "deep"]
+    depth_labels = {"quick": "Quick", "balanced": "Balanced", "deep": "Deep"}
+    data["query_label"] = data["query"].map(query_label)
+    data["depth"] = data["compare_scenario"].str.extract(r"discover-(quick|balanced|deep)-")[0]
+    data["depth_label"] = data["depth"].map(depth_labels)
+    data["added_s"] = data["added_ms"] / 1000
+    data["value_label"] = data["added_s"].map(lambda value: f"+{value:.1f}s")
+
+    chart = base_chart(data, width=360, height=200)
+    line = chart.mark_line(strokeWidth=3, point=alt.OverlayMarkDef(size=140, filled=True)).encode(
+        x=alt.X("depth_label:N", sort=[depth_labels[item] for item in depth_order], title=None),
+        y=alt.Y("added_s:Q", title="Added latency over native (seconds)"),
+        color=alt.Color(
+            "query:N",
+            scale=alt.Scale(domain=list(QUERY_COLORS.keys()), range=list(QUERY_COLORS.values())),
+            legend=alt.Legend(title=None),
+        ),
+        tooltip=[
+            alt.Tooltip("query_label:N", title="Query"),
+            alt.Tooltip("depth_label:N", title="Depth"),
+            alt.Tooltip("added_s:Q", title="Added seconds", format=".2f"),
+        ],
+    )
+    labels = chart.mark_text(
+        dy=-14,
+        font=FONT_FAMILY,
+        fontSize=12,
+        fontWeight=600,
+        color=TITLE_COLOR,
+    ).encode(
+        x=alt.X("depth_label:N", sort=[depth_labels[item] for item in depth_order]),
+        y=alt.Y("added_s:Q"),
+        text="value_label:N",
+        detail="query:N",
+    )
+
+    chart_out = style_chart(
+        alt.layer(line, labels),
+        "Depth overhead versus native",
+        "Quick is already expensive. Balanced is the practical tradeoff tier. Deep should stay an explicit heavy-recall choice.",
+    )
+    save_chart(chart_out, output_dir, "depth-overhead")
+
+
+def build_readme_tax_chart(paired_effects: pd.DataFrame, output_dir: Path) -> None:
+    data = paired_effects[paired_effects["effect_type"] == "readme-tax"].copy()
+    data["query_label"] = data["query"].map(query_label)
+    data["rank_mode"] = data["label"].str.replace("-readme-tax", "", regex=False).str.replace("-", " ").str.title()
+    data["added_s"] = data["added_ms"] / 1000
+    data["value_label"] = data["added_s"].map(lambda value: f"+{value:.1f}s")
+
+    chart = base_chart(data, width=320, height=210)
+    bars = chart.mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8, width=48).encode(
+        x=alt.X("rank_mode:N", title=None, sort=["Query", "Quality", "Blended"]),
+        y=alt.Y("added_s:Q", title="README overhead (seconds)"),
+        color=alt.Color(
+            "rank_mode:N",
+            scale=alt.Scale(
+                domain=["Query", "Quality", "Blended"],
+                range=["#ea580c", "#2563eb", "#475569"],
+            ),
+            legend=None,
+        ),
+        tooltip=[
+            alt.Tooltip("query_label:N", title="Query"),
+            alt.Tooltip("rank_mode:N", title="Base rank"),
+            alt.Tooltip("added_s:Q", title="Added seconds", format=".2f"),
+        ],
+    )
+    labels = chart.mark_text(
+        dy=-10,
+        font=FONT_FAMILY,
+        fontSize=12,
+        fontWeight=600,
+        color=TITLE_COLOR,
+    ).encode(
+        x=alt.X("rank_mode:N", sort=["Query", "Quality", "Blended"]),
+        y=alt.Y("added_s:Q"),
+        text="value_label:N",
+    )
+
+    faceted = alt.layer(bars, labels).facet(
+        column=alt.Column("query_label:N", title=None, sort=[query_label(item) for item in PERSISTENCE_QUERIES])
+    )
+    chart_out = style_chart(
+        faceted,
+        "README enrichment tax",
+        "README evidence costs another 3 to 5 seconds in this run and did not improve top-10 overlap.",
+    )
+    save_chart(chart_out, output_dir, "readme-tax")
+
+
+def build_balanced_tradeoff_chart(scenario_analysis: pd.DataFrame, output_dir: Path) -> None:
+    data = scenario_analysis[scenario_analysis["scenario"].isin(BALANCED_TRADEOFF_SCENARIOS)].copy()
+    data["query_label"] = data["query"].map(query_label)
+    data["scenario_label"] = data["scenario"].map(scenario_label)
+    data["duration_s"] = data["duration_ms"] / 1000
+    data["label_text"] = data["scenario"].map(lambda value: SCATTER_SHORT_LABELS.get(value, scenario_label(value)))
+    data = add_offset_columns(
+        data,
+        offset_map=TRADEOFF_LABEL_OFFSETS,
+        x_field="duration_s",
+        y_field="top_k_jaccard",
+    )
+
+    chart = base_chart(data, width=400, height=245)
+    points = chart.mark_circle(opacity=0.92, stroke="#ffffff", strokeWidth=1.5).encode(
+        x=alt.X("duration_s:Q", title="Wall time (seconds)"),
+        y=alt.Y("top_k_jaccard:Q", title="Top-10 Jaccard versus native", scale=alt.Scale(domain=[0, 1])),
+        size=alt.Size("median_stars:Q", title="Median stars", scale=alt.Scale(range=[120, 1600])),
+        color=alt.Color(
+            "scenario:N",
+            scale=alt.Scale(domain=list(SCENARIO_COLORS.keys()), range=list(SCENARIO_COLORS.values())),
+            legend=None,
+        ),
+        tooltip=[
+            alt.Tooltip("query_label:N", title="Query"),
+            alt.Tooltip("scenario_label:N", title="Scenario"),
+            alt.Tooltip("duration_s:Q", title="Duration (s)", format=".2f"),
+            alt.Tooltip("top_k_jaccard:Q", title="Jaccard", format=".4f"),
+            alt.Tooltip("novel_results:Q", title="Novel repos"),
+            alt.Tooltip("median_stars:Q", title="Median stars", format=".0f"),
+        ],
+    )
+    labels = chart.mark_text(
+        baseline="middle",
+        font=FONT_FAMILY,
+        fontSize=10,
+        color=TITLE_COLOR,
+    ).encode(
+        x="label_x:Q",
+        y="label_y:Q",
+        text="label_text:N",
+    )
+    faceted = alt.layer(points, labels).facet(
+        column=alt.Column("query_label:N", title=None, sort=[query_label(item) for item in PERSISTENCE_QUERIES])
+    )
+    chart_out = style_chart(
+        faceted,
+        "Balanced-mode tradeoff map",
+        "Balanced quality is the safest non-native default. Query buys novelty by giving up much more of the baseline core.",
+    )
+    save_chart(chart_out, output_dir, "balanced-tradeoff")
+
+
+def build_balanced_pareto_chart(scenario_analysis: pd.DataFrame, output_dir: Path) -> None:
+    data = scenario_analysis[scenario_analysis["scenario"].isin(BALANCED_PARETO_SCENARIOS)].copy()
+    data["query_label"] = data["query"].map(query_label)
+    data["scenario_label"] = data["scenario"].map(scenario_label)
+    data["duration_s"] = data["duration_ms"] / 1000
+    data["frontier_label"] = data["balanced_general_frontier"].map(lambda value: "Frontier" if value else "Off frontier")
+    data["label_text"] = data.apply(
+        lambda row: SCATTER_SHORT_LABELS.get(str(row["scenario"]), row["scenario_label"])
+        if bool(row["balanced_general_frontier"])
+        else "",
+        axis=1,
+    )
+
+    chart = base_chart(data, width=400, height=245)
+    points = chart.mark_circle(stroke="#ffffff", strokeWidth=1.4).encode(
+        x=alt.X("duration_s:Q", title="Wall time (seconds)"),
+        y=alt.Y("top_k_jaccard:Q", title="Top-10 Jaccard versus native", scale=alt.Scale(domain=[0, 1])),
+        size=alt.Size("novel_results:Q", title="Novel repos", scale=alt.Scale(range=[130, 1200])),
+        color=alt.Color(
+            "frontier_label:N",
+            scale=alt.Scale(domain=["Frontier", "Off frontier"], range=["#0f766e", "#cbd5e1"]),
+            legend=alt.Legend(title=None),
+        ),
+        opacity=alt.condition(alt.datum.balanced_general_frontier, alt.value(0.96), alt.value(0.42)),
+        tooltip=[
+            alt.Tooltip("query_label:N", title="Query"),
+            alt.Tooltip("scenario_label:N", title="Scenario"),
+            alt.Tooltip("duration_s:Q", title="Duration (s)", format=".2f"),
+            alt.Tooltip("top_k_jaccard:Q", title="Jaccard", format=".4f"),
+            alt.Tooltip("novel_results:Q", title="Novel repos"),
+            alt.Tooltip("frontier_label:N", title="Status"),
+        ],
+    )
+    labels = chart.mark_text(
+        align="left",
+        baseline="middle",
+        dx=10,
+        font=FONT_FAMILY,
+        fontSize=11,
+        color=TITLE_COLOR,
+    ).encode(
+        x="duration_s:Q",
+        y="top_k_jaccard:Q",
+        text="label_text:N",
+    )
+    faceted = alt.layer(points, labels).facet(
+        column=alt.Column("query_label:N", title=None, sort=[query_label(item) for item in PERSISTENCE_QUERIES])
+    )
+    chart_out = style_chart(
+        faceted,
+        "Balanced frontier map",
+        "Frontier scenarios are the only balanced options worth keeping as tradeoff leaders for their query family.",
+    )
+    save_chart(chart_out, output_dir, "balanced-pareto")
+
+
+def build_core_retention_chart(scenario_analysis: pd.DataFrame, output_dir: Path) -> None:
+    data = scenario_analysis[scenario_analysis["scenario"].isin(CORE_RETENTION_SCENARIOS)].copy()
+    data["query_label"] = data["query"].map(query_label)
+    data["scenario_label"] = data["scenario"].map(scenario_label)
+    rates = pd.concat(
+        [
+            data[["query_label", "scenario_label", "core_top3_rate"]].rename(columns={"core_top3_rate": "retention"}),
+            data[["query_label", "scenario_label", "core_top5_rate"]].rename(columns={"core_top5_rate": "retention"}),
+        ],
+        ignore_index=True,
+    )
+    rates["cohort"] = ["Native top 3"] * len(data) + ["Native top 5"] * len(data)
+    rates["retention_label"] = rates["retention"].map(percent_label)
+
+    chart = base_chart(rates, width=250, height=210)
+    heatmap = chart.mark_rect(cornerRadius=6).encode(
+        x=alt.X("cohort:N", title=None, sort=["Native top 3", "Native top 5"]),
+        y=alt.Y(
+            "scenario_label:N",
+            title=None,
+            sort=[scenario_label(item) for item in CORE_RETENTION_SCENARIOS],
+        ),
+        color=alt.Color(
+            "retention:Q",
+            title="Retention",
+            scale=alt.Scale(domain=[0, 1], range=["#eff6ff", "#2563eb"]),
+        ),
+        tooltip=[
+            alt.Tooltip("query_label:N", title="Query"),
+            alt.Tooltip("scenario_label:N", title="Scenario"),
+            alt.Tooltip("cohort:N", title="Baseline slice"),
+            alt.Tooltip("retention:Q", title="Retention", format=".2%"),
+        ],
+    )
+    labels = chart.mark_text(font=FONT_FAMILY, fontSize=12, fontWeight=600).encode(
+        x=alt.X("cohort:N", sort=["Native top 3", "Native top 5"]),
+        y=alt.Y("scenario_label:N", sort=[scenario_label(item) for item in CORE_RETENTION_SCENARIOS]),
+        text="retention_label:N",
+        color=alt.condition(alt.datum.retention > 0.55, alt.value("white"), alt.value(TITLE_COLOR)),
+    )
+    faceted = alt.layer(heatmap, labels).facet(
+        column=alt.Column("query_label:N", title=None, sort=[query_label(item) for item in PERSISTENCE_QUERIES])
+    )
+    chart_out = style_chart(
+        faceted,
+        "Baseline core retention",
+        "Quality retains the native core far better than query, which is why it is the default advanced recommendation.",
+    )
+    save_chart(chart_out, output_dir, "core-retention")
+
+
+def build_surface_mix_chart(scenario_analysis: pd.DataFrame, output_dir: Path) -> None:
+    data = scenario_analysis[scenario_analysis["scenario"].isin(SURFACE_MIX_SCENARIOS)].copy()
+    data["query_label"] = data["query"].map(query_label)
+    data["scenario_label"] = data["scenario"].map(scenario_label)
+    long = data.melt(
+        id_vars=["query_label", "scenario_label"],
+        value_vars=[
+            "surface_name_share",
+            "surface_description_share",
+            "surface_topics_share",
+            "surface_readme_share",
+        ],
+        var_name="surface_key",
+        value_name="share",
+    )
+    long["surface"] = long["surface_key"].map(
+        {
+            "surface_name_share": "name",
+            "surface_description_share": "description",
+            "surface_topics_share": "topics",
+            "surface_readme_share": "readme",
         }
-        for scenario in LATENCY_SCENARIOS:
-            row = by_scenario[scenario]
-            rows.append(
-                {
-                    "label": SCENARIO_LABELS[scenario],
-                    "value": float(row["duration_ms"]),
-                    "color": SCENARIO_COLORS[scenario],
-                }
-            )
-        panels.append(
-            panel_bar_chart(
-                x=40 + (index * 760),
-                y=96,
-                width=panel_width,
-                title=query,
-                subtitle="Latency ladder for representative scenarios",
-                rows=rows,
-                value_formatter=lambda value: f"{int(value / 1000)}s" if value >= 1000 else f"{int(value)}ms",
-                scale_max=62000,
-                scale_ticks=[0, 15000, 30000, 45000, 60000],
-            )
-        )
+    )
 
-    body = [
-        svg_text(40, 44, "Benchmark latency profile", size=34, weight=800),
-        svg_text(
-            40,
-            72,
-            "Native stays sub-second. Depth drives the biggest cost jump, and README enrichment adds another few seconds on top of balanced discover.",
-            size=16,
-            fill="#334155",
+    chart = base_chart(long, width=390, height=210)
+    bars = chart.mark_bar(cornerRadiusEnd=6, cornerRadiusTopRight=6).encode(
+        y=alt.Y(
+            "scenario_label:N",
+            sort=[scenario_label(item) for item in SURFACE_MIX_SCENARIOS],
+            title=None,
         ),
-        *panels,
-    ]
-    target = output_dir / "latency-profile.svg"
-    write_svg(target, width, 520, "".join(body))
-    rasterize_svg(target)
-
-
-def build_churn_chart(comparisons: list[dict[str, str]], output_dir: Path) -> None:
-    width = 1560
-    panel_width = 730
-    panels: list[str] = []
-    for index, query in enumerate(PERSISTENCE_QUERIES):
-        by_scenario = {
-            row["scenario"]: row
-            for row in comparisons
-            if row["query"] == query and row["scenario"] in CHURN_SCENARIOS
-        }
-        rows = []
-        for scenario in CHURN_SCENARIOS:
-            row = by_scenario[scenario]
-            rows.append(
-                {
-                    "label": SCENARIO_LABELS[scenario],
-                    "value": float(row["top_k_jaccard"]),
-                    "color": SCENARIO_COLORS[scenario],
-                }
-            )
-        panels.append(
-            panel_bar_chart(
-                x=40 + (index * 760),
-                y=96,
-                width=panel_width,
-                title=query,
-                subtitle="Top-10 Jaccard similarity versus native best-match",
-                rows=rows,
-                value_formatter=lambda value: f"{value:.2f}",
-                scale_max=0.70,
-                scale_ticks=[0.0, 0.2, 0.4, 0.6],
-            )
-        )
-
-    body = [
-        svg_text(40, 44, "Scenario churn versus the native baseline", size=34, weight=800),
-        svg_text(
-            40,
-            72,
-            "Quality-oriented ranking stays closer to the native baseline. Rust and recency slices deliberately pull the result set away from the default top 10.",
-            size=16,
-            fill="#334155",
+        x=alt.X("share:Q", title="Share of matched surfaces", stack="normalize", axis=alt.Axis(format="%")),
+        color=alt.Color(
+            "surface:N",
+            scale=alt.Scale(domain=list(SURFACE_COLORS.keys()), range=list(SURFACE_COLORS.values())),
+            legend=alt.Legend(title=None),
         ),
-        *panels,
-    ]
-    target = output_dir / "baseline-churn.svg"
-    write_svg(target, width, 640, "".join(body))
-    rasterize_svg(target)
+        order=alt.Order("surface:N"),
+        tooltip=[
+            alt.Tooltip("query_label:N", title="Query"),
+            alt.Tooltip("scenario_label:N", title="Scenario"),
+            alt.Tooltip("surface:N", title="Surface"),
+            alt.Tooltip("share:Q", title="Share", format=".2%"),
+        ],
+    )
+
+    faceted = bars.facet(
+        column=alt.Column("query_label:N", title=None, sort=[query_label(item) for item in PERSISTENCE_QUERIES])
+    )
+    chart_out = style_chart(
+        faceted,
+        "Surface attribution mix",
+        "Quality leans less on repository names and more on descriptions and topics, which helps explain its safer curation profile.",
+    )
+    save_chart(chart_out, output_dir, "surface-mix")
 
 
-def build_persistence_chart(repo_rows: list[dict[str, str]], output_dir: Path) -> None:
-    width = 1560
-    panel_width = 730
-    panels: list[str] = []
-    for index, query in enumerate(PERSISTENCE_QUERIES):
-        counts = Counter(
-            row["full_name"]
-            for row in repo_rows
-            if row["query"] == query and row["full_name"]
-        )
-        top_rows = counts.most_common(6)
-        rows = [
-            {"label": label, "value": float(value), "color": "#2563eb" if idx < 3 else "#0f766e"}
-            for idx, (label, value) in enumerate(top_rows)
-        ]
-        panels.append(
-            panel_bar_chart(
-                x=40 + (index * 760),
-                y=96,
-                width=panel_width,
-                title=query,
-                subtitle="Repositories that persist across the most scenarios",
-                rows=rows,
-                value_formatter=lambda value: f"{int(value)}",
-                scale_max=max(28, max((row["value"] for row in rows), default=1)),
-                scale_ticks=[0, 5, 10, 15, 20, 25],
-            )
-        )
+def build_churn_chart(comparisons: pd.DataFrame, output_dir: Path) -> None:
+    data = comparisons[comparisons["scenario"].isin(CHURN_SCENARIOS)].copy()
+    data["query_label"] = data["query"].map(query_label)
+    data["scenario_label"] = data["scenario"].map(scenario_label)
+    data["label_text"] = data["scenario"].map(lambda value: SCATTER_SHORT_LABELS.get(value, scenario_label(value)))
+    data = add_offset_columns(
+        data,
+        offset_map=CHURN_LABEL_OFFSETS,
+        x_field="top_k_jaccard",
+        y_field="novel_results",
+    )
 
-    body = [
-        svg_text(40, 44, "Most persistent repositories across the study", size=34, weight=800),
-        svg_text(
-            40,
-            72,
-            "These repositories keep surfacing even as ranking strategy, depth, README enrichment, and filter slices change.",
-            size=16,
-            fill="#334155",
+    chart = base_chart(data, width=400, height=240)
+    points = chart.mark_circle(size=260, opacity=0.9, stroke="#ffffff", strokeWidth=1.5).encode(
+        x=alt.X("top_k_jaccard:Q", title="Top-10 Jaccard versus native", scale=alt.Scale(domain=[0, 1])),
+        y=alt.Y("novel_results:Q", title="Novel repositories in top 10", scale=alt.Scale(domain=[0, 10])),
+        color=alt.Color(
+            "scenario:N",
+            scale=alt.Scale(domain=list(SCENARIO_COLORS.keys()), range=list(SCENARIO_COLORS.values())),
+            legend=None,
         ),
-        *panels,
-    ]
-    target = output_dir / "persistence-leaders.svg"
-    write_svg(target, width, 580, "".join(body))
-    rasterize_svg(target)
+        tooltip=[
+            alt.Tooltip("query_label:N", title="Query"),
+            alt.Tooltip("scenario_label:N", title="Scenario"),
+            alt.Tooltip("top_k_jaccard:Q", title="Jaccard", format=".4f"),
+            alt.Tooltip("novel_results:Q", title="Novel repos"),
+            alt.Tooltip("avg_abs_rank_shift_common:Q", title="Avg. rank shift", format=".2f"),
+        ],
+    )
+    labels = chart.mark_text(
+        baseline="middle",
+        font=FONT_FAMILY,
+        fontSize=10,
+        color=TITLE_COLOR,
+    ).encode(
+        x="label_x:Q",
+        y="label_y:Q",
+        text="label_text:N",
+    )
+    faceted = alt.layer(points, labels).facet(
+        column=alt.Column("query_label:N", title=None, sort=[query_label(item) for item in PERSISTENCE_QUERIES])
+    )
+    chart_out = style_chart(
+        faceted,
+        "Scenario churn versus native",
+        "Recency and language slices behave like different intents, not like small tweaks to the default search path.",
+    )
+    save_chart(chart_out, output_dir, "baseline-churn")
 
 
-def build_depth_overhead_chart(paired_effects: list[dict[str, str]], output_dir: Path) -> None:
-    width = 1560
-    panel_width = 730
-    panels: list[str] = []
-    effect_map = {
-        (row["query"], row["label"]): row
-        for row in paired_effects
-        if row["effect_type"] == "depth-over-native"
-    }
-    colors = {
-        "quick-native-over-baseline": "#2563eb",
-        "balanced-native-over-baseline": "#0f766e",
-        "deep-native-over-baseline": "#b45309",
-    }
-    labels = {
-        "quick-native-over-baseline": "quick native",
-        "balanced-native-over-baseline": "balanced native",
-        "deep-native-over-baseline": "deep native",
-    }
-    for index, query in enumerate(PERSISTENCE_QUERIES):
-        rows = []
-        for label in ("quick-native-over-baseline", "balanced-native-over-baseline", "deep-native-over-baseline"):
-            effect = effect_map[(query, label)]
-            rows.append(
-                {
-                    "label": labels[label],
-                    "value": float(effect["added_ms"]),
-                    "color": colors[label],
-                }
-            )
-        panels.append(
-            panel_bar_chart(
-                x=40 + (index * 760),
-                y=96,
-                width=panel_width,
-                title=query,
-                subtitle="Extra latency added over native best-match",
-                rows=rows,
-                value_formatter=lambda value: f"+{value / 1000:.1f}s",
-                scale_max=60000,
-                scale_ticks=[0, 15000, 30000, 45000, 60000],
-            )
-        )
-    body = [
-        svg_text(40, 44, "Depth overhead versus the native path", size=34, weight=800),
-        svg_text(
-            40,
-            72,
-            "Quick is the first meaningful latency jump, balanced is the practical middle ground, and deep roughly doubles the balanced cost.",
-            size=16,
-            fill="#334155",
+def build_persistence_chart(repo_rows: pd.DataFrame, output_dir: Path) -> None:
+    data = repo_rows[repo_rows["query"].isin(PERSISTENCE_QUERIES)].copy()
+    counts = (
+        data.groupby(["query", "full_name"], as_index=False)
+        .size()
+        .rename(columns={"size": "appearances"})
+        .sort_values(["query", "appearances", "full_name"], ascending=[True, False, True])
+    )
+    top = counts.groupby("query", group_keys=False).head(10).copy()
+    top["query_label"] = top["query"].map(query_label)
+    top["label_text"] = top["appearances"].astype(int).astype(str)
+
+    chart = base_chart(top, width=400, height=280)
+    bars = chart.mark_bar(cornerRadiusEnd=8, size=22).encode(
+        y=alt.Y("full_name:N", title=None, sort="-x"),
+        x=alt.X("appearances:Q", title="Number of scenarios the repo survived"),
+        color=alt.Color(
+            "query:N",
+            scale=alt.Scale(domain=list(QUERY_COLORS.keys()), range=list(QUERY_COLORS.values())),
+            legend=None,
         ),
-        *panels,
-    ]
-    target = output_dir / "depth-overhead.svg"
-    write_svg(target, width, 460, "".join(body))
-    rasterize_svg(target)
-
-
-def build_readme_tax_chart(paired_effects: list[dict[str, str]], output_dir: Path) -> None:
-    width = 1560
-    panel_width = 730
-    panels: list[str] = []
-    effect_map = {
-        (row["query"], row["label"]): row
-        for row in paired_effects
-        if row["effect_type"] == "readme-tax"
-    }
-    colors = {
-        "query-readme-tax": "#ea580c",
-        "quality-readme-tax": "#2563eb",
-        "blended-readme-tax": "#475569",
-    }
-    labels = {
-        "query-readme-tax": "query + README",
-        "quality-readme-tax": "quality + README",
-        "blended-readme-tax": "blended + README",
-    }
-    for index, query in enumerate(PERSISTENCE_QUERIES):
-        rows = []
-        for label in ("query-readme-tax", "quality-readme-tax", "blended-readme-tax"):
-            effect = effect_map[(query, label)]
-            rows.append(
-                {
-                    "label": labels[label],
-                    "value": float(effect["added_ms"]),
-                    "color": colors[label],
-                }
-            )
-        panels.append(
-            panel_bar_chart(
-                x=40 + (index * 760),
-                y=96,
-                width=panel_width,
-                title=query,
-                subtitle="Added latency of README enrichment over the matching balanced run",
-                rows=rows,
-                value_formatter=lambda value: f"+{value / 1000:.1f}s",
-                scale_max=5000,
-                scale_ticks=[0, 1000, 2000, 3000, 4000, 5000],
-            )
-        )
-    body = [
-        svg_text(40, 44, "README enrichment tax", size=34, weight=800),
-        svg_text(
-            40,
-            72,
-            "In this run, README enrichment added roughly three to five seconds while leaving the final top-10 overlap unchanged for the balanced modes tested.",
-            size=16,
-            fill="#334155",
-        ),
-        *panels,
-    ]
-    target = output_dir / "readme-tax.svg"
-    write_svg(target, width, 460, "".join(body))
-    rasterize_svg(target)
-
-
-def build_balanced_tradeoff_chart(scenario_analysis: list[dict[str, str]], output_dir: Path) -> None:
-    width = 1560
-    height = 620
-    panel_width = 730
-    panel_height = 420
-    parts: list[str] = [
-        svg_text(40, 44, "Balanced-mode tradeoff map", size=34, weight=800),
-        svg_text(
-            40,
-            72,
-            "Up and left is better for baseline preservation at lower cost. Rightward drift buys more semantic movement or specialized filtering.",
-            size=16,
-            fill="#334155",
-        ),
-    ]
-
-    label_map = {
-        "discover-balanced-query": "query",
-        "discover-balanced-activity": "activity",
-        "discover-balanced-quality": "quality",
-        "discover-balanced-blended": "blended",
-        "discover-balanced-blended-quality-heavy": "quality-heavy",
-    }
-
-    for panel_index, query in enumerate(PERSISTENCE_QUERIES):
-        x = 40 + (panel_index * 760)
-        y = 96
-        parts.append(svg_rect(x, y, panel_width, panel_height, fill="#f8fafc", stroke="#cbd5e1", stroke_width=1, rx=24))
-        parts.append(svg_text(x + 28, y + 40, query, size=26, weight=700))
-        parts.append(svg_text(x + 28, y + 68, "Balanced scenarios only: duration vs native-baseline fidelity", size=14, fill="#475569"))
-
-        chart_x = x + 84
-        chart_y = y + 110
-        chart_width = 560
-        chart_height = 240
-        min_x = 25.0
-        max_x = 31.0
-        min_y = 0.2
-        max_y = 0.7
-
-        for tick in (25.0, 27.0, 29.0, 31.0):
-            tx = chart_x + ((tick - min_x) / (max_x - min_x)) * chart_width
-            parts.append(svg_line(tx, chart_y, tx, chart_y + chart_height, stroke="#cbd5e1", opacity=0.55))
-            parts.append(svg_text(tx, chart_y + chart_height + 26, f"{tick:.0f}s", size=12, fill="#64748b", anchor="middle"))
-        for tick in (0.2, 0.4, 0.6):
-            ty = chart_y + chart_height - ((tick - min_y) / (max_y - min_y)) * chart_height
-            parts.append(svg_line(chart_x, ty, chart_x + chart_width, ty, stroke="#cbd5e1", opacity=0.55))
-            parts.append(svg_text(chart_x - 16, ty + 4, f"{tick:.2f}", size=12, fill="#64748b", anchor="end"))
-
-        parts.append(svg_text(chart_x + chart_width / 2, chart_y + chart_height + 52, "duration", size=13, fill="#475569", anchor="middle"))
-        parts.append(svg_text(chart_x - 46, chart_y + chart_height / 2, "Jaccard", size=13, fill="#475569", anchor="middle"))
-
-        for scenario in BALANCED_TRADEOFF_SCENARIOS:
-            row = next(item for item in scenario_analysis if item["query"] == query and item["scenario"] == scenario)
-            duration_s = float(row["duration_ms"]) / 1000.0
-            jaccard = float(row["top_k_jaccard"])
-            px = chart_x + ((duration_s - min_x) / (max_x - min_x)) * chart_width
-            py = chart_y + chart_height - ((jaccard - min_y) / (max_y - min_y)) * chart_height
-            color = SCENARIO_COLORS[scenario]
-            parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="9" fill="{color}" stroke="#ffffff" stroke-width="2" />')
-            parts.append(svg_text(px + 14, py + 5, label_map[scenario], size=13, fill="#0f172a"))
-
-    target = output_dir / "balanced-tradeoff.svg"
-    write_svg(target, width, height, "".join(parts))
-    rasterize_svg(target)
-
-def build_core_retention_chart(scenario_analysis: list[dict[str, str]], output_dir: Path) -> None:
-    width = 1560
-    panel_width = 730
-    panels: list[str] = []
-    for index, query in enumerate(PERSISTENCE_QUERIES):
-        rows = []
-        by_scenario = {
-            row["scenario"]: row
-            for row in scenario_analysis
-            if row["query"] == query and row["scenario"] in CORE_RETENTION_SCENARIOS
-        }
-        for scenario in CORE_RETENTION_SCENARIOS:
-            row = by_scenario[scenario]
-            rows.append(
-                {
-                    "label": short_balanced_label(scenario),
-                    "value": float(row["core_top5_retained"]),
-                    "color": SCENARIO_COLORS[scenario],
-                }
-            )
-        panels.append(
-            panel_bar_chart(
-                x=40 + (index * 760),
-                y=96,
-                width=panel_width,
-                title=query,
-                subtitle="How many of the native top five still survive in the balanced result set",
-                rows=rows,
-                value_formatter=lambda value: f"{int(value)}/5",
-                scale_max=5,
-                scale_ticks=[0, 1, 2, 3, 4, 5],
-            )
-        )
-
-    body = [
-        svg_text(40, 44, "Baseline core retention", size=34, weight=800),
-        svg_text(
-            40,
-            72,
-            "Quality-oriented modes keep more of the native core. Query-heavy modes trade away core retention to maximize novel results.",
-            size=16,
-            fill="#334155",
-        ),
-        *panels,
-    ]
-    target = output_dir / "core-retention.svg"
-    write_svg(target, width, 580, "".join(body))
-    rasterize_svg(target)
-
-def build_surface_mix_chart(scenario_analysis: list[dict[str, str]], output_dir: Path) -> None:
-    width = 1560
-    height = 640
-    panel_width = 730
-    panel_height = 470
-    surface_colors = {
-        "name": "#ea580c",
-        "description": "#2563eb",
-        "topics": "#0f766e",
-        "readme": "#64748b",
-    }
-    parts: list[str] = [
-        svg_text(40, 44, "Balanced-mode surface attribution mix", size=34, weight=800),
-        svg_text(
-            40,
-            72,
-            "These shares show what each ranking mode is actually leaning on inside the explain payload. Quality shifts weight away from repo names and toward richer descriptive evidence.",
-            size=16,
-            fill="#334155",
-        ),
-    ]
-
-    legend_x = 40
-    for surface in ("name", "description", "topics", "readme"):
-        parts.append(svg_rect(legend_x, 92, 18, 18, fill=surface_colors[surface], rx=4))
-        parts.append(svg_text(legend_x + 28, 106, surface, size=13, fill="#334155"))
-        legend_x += 140
-
-    for panel_index, query in enumerate(PERSISTENCE_QUERIES):
-        x = 40 + (panel_index * 760)
-        y = 140
-        parts.append(svg_rect(x, y, panel_width, panel_height, fill="#f8fafc", stroke="#cbd5e1", stroke_width=1, rx=24))
-        parts.append(svg_text(x + 28, y + 40, query, size=26, weight=700))
-        parts.append(svg_text(x + 28, y + 68, "Share of matched surfaces across the balanced focus set", size=14, fill="#475569"))
-
-        label_x = x + 28
-        chart_x = x + 200
-        chart_width = 470
-        top = y + 120
-
-        for tick in (0.0, 0.25, 0.5, 0.75, 1.0):
-            tx = chart_x + (tick * chart_width)
-            parts.append(svg_line(tx, top - 10, tx, top + (len(SURFACE_MIX_SCENARIOS) * 58) - 18, stroke="#cbd5e1", opacity=0.55))
-            parts.append(svg_text(tx, top - 18, f"{int(tick * 100)}%", size=12, fill="#64748b", anchor="middle"))
-
-        by_scenario = {
-            row["scenario"]: row
-            for row in scenario_analysis
-            if row["query"] == query and row["scenario"] in SURFACE_MIX_SCENARIOS
-        }
-        for row_index, scenario in enumerate(SURFACE_MIX_SCENARIOS):
-            row = by_scenario[scenario]
-            row_y = top + (row_index * 58)
-            bar_y = row_y - 18
-            parts.append(svg_text(label_x, row_y, short_balanced_label(scenario), size=14, fill="#0f172a"))
-            parts.append(svg_rect(chart_x, bar_y, chart_width, 24, fill="#e2e8f0", rx=12))
-
-            shares = [
-                ("name", float(row["surface_name_share"])),
-                ("description", float(row["surface_description_share"])),
-                ("topics", float(row["surface_topics_share"])),
-                ("readme", float(row["surface_readme_share"])),
-            ]
-            segment_x = chart_x
-            for surface, share in shares:
-                if share <= 0:
-                    continue
-                segment_width = chart_width * share
-                parts.append(svg_rect(segment_x, bar_y, segment_width, 24, fill=surface_colors[surface], rx=12 if segment_x == chart_x else 0))
-                segment_x += segment_width
-            parts.append(svg_text(chart_x + chart_width + 18, row_y, f"{int(float(row['surface_breadth']))} surfaces", size=13, fill="#334155"))
-
-    target = output_dir / "surface-mix.svg"
-    write_svg(target, width, height, "".join(parts))
-    rasterize_svg(target)
-
-def build_balanced_pareto_chart(scenario_analysis: list[dict[str, str]], output_dir: Path) -> None:
-    width = 1560
-    height = 640
-    panel_width = 730
-    panel_height = 420
-    parts: list[str] = [
-        svg_text(40, 44, "Balanced frontier map", size=34, weight=800),
-        svg_text(
-            40,
-            72,
-            "Each point is a balanced discover mode without README or slice filters. X is latency, Y is novel results, bubble size is native top-five retention, and the white ring marks the nondominated frontier.",
-            size=16,
-            fill="#334155",
-        ),
-    ]
-    label_offsets = {
-        "discover-balanced-query": (16, 6),
-        "discover-balanced-activity": (16, 6),
-        "discover-balanced-quality": (16, 6),
-        "discover-balanced-blended": (16, 6),
-        "discover-balanced-native": (16, 6),
-        "discover-balanced-blended-query-heavy": (16, -10),
-        "discover-balanced-blended-activity-heavy": (16, -10),
-        "discover-balanced-blended-quality-heavy": (16, 6),
-    }
-
-    for panel_index, query in enumerate(PERSISTENCE_QUERIES):
-        x = 40 + (panel_index * 760)
-        y = 116
-        parts.append(svg_rect(x, y, panel_width, panel_height, fill="#f8fafc", stroke="#cbd5e1", stroke_width=1, rx=24))
-        parts.append(svg_text(x + 28, y + 40, query, size=26, weight=700))
-        parts.append(svg_text(x + 28, y + 68, "Lower latency with more novel results is better, but bubble size shows how much native core survives", size=14, fill="#475569"))
-
-        candidates = [
-            row
-            for row in scenario_analysis
-            if row["query"] == query and row["scenario"] in BALANCED_PARETO_SCENARIOS
-        ]
-        min_duration = min(float(row["duration_ms"]) / 1000.0 for row in candidates) - 0.3
-        max_duration = max(float(row["duration_ms"]) / 1000.0 for row in candidates) + 0.3
-        chart_x = x + 84
-        chart_y = y + 110
-        chart_width = 560
-        chart_height = 240
-
-        for tick in range(0, 7):
-            ty = chart_y + chart_height - ((tick / 6) * chart_height)
-            parts.append(svg_line(chart_x, ty, chart_x + chart_width, ty, stroke="#cbd5e1", opacity=0.55))
-            parts.append(svg_text(chart_x - 14, ty + 4, str(tick), size=12, fill="#64748b", anchor="end"))
-        x_ticks = 4
-        for tick_index in range(x_ticks + 1):
-            tick_value = min_duration + ((max_duration - min_duration) * tick_index / x_ticks)
-            tx = chart_x + ((tick_value - min_duration) / (max_duration - min_duration)) * chart_width
-            parts.append(svg_line(tx, chart_y, tx, chart_y + chart_height, stroke="#cbd5e1", opacity=0.55))
-            parts.append(svg_text(tx, chart_y + chart_height + 26, f"{tick_value:.1f}s", size=12, fill="#64748b", anchor="middle"))
-
-        parts.append(svg_text(chart_x + chart_width / 2, chart_y + chart_height + 54, "duration", size=13, fill="#475569", anchor="middle"))
-        parts.append(svg_text(chart_x - 48, chart_y + chart_height / 2, "novel", size=13, fill="#475569", anchor="middle"))
-
-        for row in candidates:
-            duration_s = float(row["duration_ms"]) / 1000.0
-            novel_results = float(row["novel_results"])
-            retained = float(row["core_top5_retained"])
-            px = chart_x + ((duration_s - min_duration) / (max_duration - min_duration)) * chart_width
-            py = chart_y + chart_height - ((novel_results / 6.0) * chart_height)
-            radius = 7 + (retained * 1.8)
-            color = SCENARIO_COLORS[row["scenario"]]
-            if row["balanced_general_frontier"] == "True":
-                parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{radius + 4:.1f}" fill="none" stroke="#ffffff" stroke-width="3" />')
-                parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{radius + 4:.1f}" fill="none" stroke="#0f172a" stroke-width="1.5" opacity="0.65" />')
-            parts.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{radius:.1f}" fill="{color}" opacity="0.92" stroke="#ffffff" stroke-width="2" />')
-            label_dx, label_dy = label_offsets[row["scenario"]]
-            parts.append(svg_text(px + radius + label_dx, py + label_dy, short_balanced_label(row["scenario"]), size=13, fill="#0f172a"))
-
-    target = output_dir / "balanced-pareto.svg"
-    write_svg(target, width, height, "".join(parts))
-    rasterize_svg(target)
+        tooltip=[
+            alt.Tooltip("query_label:N", title="Query"),
+            alt.Tooltip("full_name:N", title="Repository"),
+            alt.Tooltip("appearances:Q", title="Appearances"),
+        ],
+    )
+    labels = chart.mark_text(
+        align="left",
+        baseline="middle",
+        dx=8,
+        font=FONT_FAMILY,
+        fontSize=12,
+        fontWeight=600,
+        color=TITLE_COLOR,
+    ).encode(
+        y=alt.Y("full_name:N", sort="-x"),
+        x=alt.X("appearances:Q"),
+        text="label_text:N",
+    )
+    faceted = alt.layer(bars, labels).facet(
+        column=alt.Column("query_label:N", title=None, sort=[query_label(item) for item in PERSISTENCE_QUERIES])
+    )
+    chart_out = style_chart(
+        faceted,
+        "Persistence leaders across the study",
+        "These repositories survive mode, ranking, and slice changes, which makes them useful anchors for demos and explanation examples.",
+    )
+    save_chart(chart_out, output_dir, "persistence-leaders")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Render static SVG charts for the gitquarry benchmark study.")
+    parser = argparse.ArgumentParser(
+        description="Render high-resolution benchmark charts directly from benchmark study CSV artifacts."
+    )
     parser.add_argument(
         "--study-dir",
         default=str(DEFAULT_STUDY_DIR),
-        help="Directory containing benchmark-study CSV outputs",
+        help="Directory containing benchmark CSV artifacts",
     )
     parser.add_argument(
         "--output-dir",
         default=str(DEFAULT_OUTPUT_DIR),
-        help="Directory to write SVG chart assets into",
+        help="Directory to write SVG and PNG chart assets into",
     )
     args = parser.parse_args()
 
+    alt.data_transformers.disable_max_rows()
+
     study_dir = Path(args.study_dir)
     output_dir = Path(args.output_dir)
-    ensure_dir(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     run_summaries = load_csv(study_dir / "run-summaries.csv")
     comparisons = load_csv(study_dir / "comparisons.csv")
-    repo_rows = load_csv(study_dir / "repo-rows.csv")
-    scenario_analysis = load_csv(study_dir / "scenario-analysis.csv")
     paired_effects = load_csv(study_dir / "paired-effects.csv")
+    scenario_analysis = load_csv(study_dir / "scenario-analysis.csv")
+    repo_rows = load_csv(study_dir / "repo-rows.csv")
 
     build_latency_chart(run_summaries, output_dir)
-    build_churn_chart(comparisons, output_dir)
-    build_persistence_chart(repo_rows, output_dir)
     build_depth_overhead_chart(paired_effects, output_dir)
     build_readme_tax_chart(paired_effects, output_dir)
     build_balanced_tradeoff_chart(scenario_analysis, output_dir)
+    build_balanced_pareto_chart(scenario_analysis, output_dir)
     build_core_retention_chart(scenario_analysis, output_dir)
     build_surface_mix_chart(scenario_analysis, output_dir)
-    build_balanced_pareto_chart(scenario_analysis, output_dir)
+    build_churn_chart(comparisons, output_dir)
+    build_persistence_chart(repo_rows, output_dir)
 
-    print(f"Wrote chart assets to {output_dir}")
+    print(f"Rendered benchmark charts to {output_dir}")
 
 
 if __name__ == "__main__":
