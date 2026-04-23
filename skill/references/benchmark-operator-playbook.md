@@ -1,17 +1,195 @@
-# Benchmark Operator Playbook
+# Gitquarry Operator Playbook
 
 ## Contents
 
-1. Default recommendation
-2. Latency ladder
-3. Intent-to-command mapping
-4. Query-family guidance
-5. Option-level guidance
-6. Failure modes to avoid
+1. Command selector
+2. Auth and host workflow
+3. Search workflow
+4. Inspect workflow
+5. Output and scripting rules
+6. Benchmark-backed discover heuristics
+7. Common failure modes
 
-## Default Recommendation
+## Command Selector
 
-Use this when an operator wants a stronger-than-native result set without a long discussion:
+Use the narrowest command that matches the task:
+
+| Task | Command | Why |
+| --- | --- | --- |
+| Save or inspect credentials | `gitquarry auth ...` | Auth is host-scoped and should be debugged separately from search behavior. |
+| Find candidate repositories | `gitquarry search ...` | Search is the discovery entry point. |
+| Inspect one known repository | `gitquarry inspect owner/repo` | Inspect is metadata-first and avoids search indirection. |
+| Check config state | `gitquarry config path` or `gitquarry config show` | Config inspection is explicit and low risk. |
+
+## Auth And Host Workflow
+
+Start here when anything smells like an auth, host, or enterprise issue.
+
+### Default auth path
+
+```bash
+gitquarry auth login
+gitquarry auth status
+```
+
+Non-interactive:
+
+```bash
+printf '%s' "$GITHUB_TOKEN" | gitquarry auth login --token-stdin
+```
+
+Resolution order:
+
+1. `GITQUARRY_TOKEN_<NORMALIZED_HOST>`
+2. `GITQUARRY_TOKEN`
+3. saved secure credential
+4. explicit insecure-file fallback
+
+### Host-scoped examples
+
+GitHub.com:
+
+```bash
+export GITQUARRY_TOKEN_GITHUB_COM=ghp_example
+gitquarry --host github.com search "rust cli"
+```
+
+GitHub Enterprise:
+
+```bash
+gitquarry --host https://ghe.example.com auth login
+gitquarry --host https://ghe.example.com search "platform tooling" --org engineering
+gitquarry --host https://ghe.example.com inspect engineering/internal-cli
+```
+
+Use `GITQUARRY_CONFIG_DIR` for isolated runs:
+
+```bash
+GITQUARRY_CONFIG_DIR="$(mktemp -d)" \
+GITQUARRY_TOKEN="$GITHUB_TOKEN" \
+gitquarry search "rust cli" --format compact --progress off
+```
+
+### Auth rules
+
+- Treat credentials as host-scoped.
+- Re-check the host before assuming the token is wrong.
+- Do not rely on insecure fallback unless `GITQUARRY_ALLOW_INSECURE_STORAGE=1` is explicitly set.
+- Use `auth status` before changing search flags when debugging access problems.
+
+## Search Workflow
+
+### 1. Start native
+
+Use native search first unless the task explicitly requires enhanced behavior:
+
+```bash
+gitquarry search "<query>"
+```
+
+Add structured filters before escalating:
+
+```bash
+gitquarry search "<query>" --language rust --topic cli --sort stars
+gitquarry search "<query>" --org vercel --min-stars 100
+gitquarry search "<query>" --updated-within 30d
+```
+
+### 2. Use discover mode deliberately
+
+Use discover mode only when the task needs:
+
+- broader candidate collection
+- ranking by `activity`, `quality`, or `blended`
+- README-aware reranking
+- explain output
+
+Baseline discover form:
+
+```bash
+gitquarry search "<query>" --mode discover
+```
+
+Discover contract:
+
+- non-native ranks require `--mode discover`
+- `--mode discover` without `--rank` defaults to `blended`
+- `--readme` is enrichment, not retrieval, and should stay explicit
+
+### 3. Prefer structured flags over raw qualifiers
+
+Good:
+
+```bash
+gitquarry search "vector database" --language rust --sort stars
+```
+
+Avoid:
+
+```bash
+gitquarry search "language:rust" --language go
+```
+
+If a raw qualifier and a structured flag overlap, gitquarry should fail clearly. Fix the command instead of guessing which side wins.
+
+## Inspect Workflow
+
+Use `inspect` when the repository is already known:
+
+```bash
+gitquarry inspect rust-lang/rust
+gitquarry inspect rust-lang/rust --readme --format json
+```
+
+Default inspect output is metadata-first:
+
+- full name and URL
+- description
+- stars and forks
+- language, topics, license
+- timestamps
+- archived, template, and fork state
+- open issues
+- latest release and contributor count when available
+
+Rules:
+
+- repository input must be `owner/repo`
+- use `--readme` only when README content is actually needed
+- prefer `inspect` over `search` when the target repo is explicit
+
+## Output And Scripting Rules
+
+Use formats intentionally:
+
+| Format | Use it for |
+| --- | --- |
+| `pretty` | direct terminal reading |
+| `json` | structured automation and tooling |
+| `compact` | minified machine pipelines or logs |
+| `csv` | flat exports |
+
+Script-safe examples:
+
+```bash
+gitquarry search "rust cli" --format json | jq '.items[].full_name'
+gitquarry search "release automation" --mode discover --format compact --progress off | jq '.total_count'
+gitquarry inspect rust-lang/rust --readme --format json | jq '.repository.latest_release.tag_name'
+```
+
+Rules:
+
+- structured data should go to `stdout`
+- progress and errors should stay on `stderr`
+- prefer `--progress off` in CI and agent runs
+
+## Benchmark-Backed Discover Heuristics
+
+These are the decision-grade search presets from the live benchmark study. They are not the whole skill, but they are the best guidance when the task is specifically about choosing discover settings.
+
+### Default recommendation
+
+Use this when the operator wants a stronger-than-native result set without a long discussion:
 
 ```bash
 gitquarry search "<query>" --mode discover --depth balanced --rank quality --explain
@@ -19,33 +197,25 @@ gitquarry search "<query>" --mode discover --depth balanced --rank quality --exp
 
 Why:
 
-- It was the best default non-native choice across the live study.
-- It preserved the native core much better than `query`.
-- It stayed in the practical latency band of the benchmark rather than jumping to deep-mode cost.
+- it was the best default non-native choice across the live study
+- it preserved the native core much better than `query`
+- it stayed in the practical latency band instead of jumping to deep-mode cost
 
-## Latency Ladder
-
-Current benchmark ranges:
+### Latency ladder
 
 | Path | Typical cost from study | What it buys |
 | --- | --- | --- |
-| Native | `~0.5s` to `~1.1s` | Pure GitHub baseline, lowest latency |
-| Discover quick | `~16s` to `~18s` | Cheapest discover proof point, often little change if rank stays conservative |
-| Discover balanced | `~27s` to `~30s` | Main tradeoff zone for curation, explain output, and controlled novelty |
-| Discover deep | `~53s` to `~60s` | High recall tax, reserve for deliberate heavy investigations |
-| README enrichment tax | `+3s` to `+5s` | Stronger match evidence, not better top-10 overlap in this run |
+| Native | `~0.5s` to `~1.1s` | Pure GitHub baseline |
+| Discover quick | `~16s` to `~18s` | Cheapest discover proof point |
+| Discover balanced | `~27s` to `~30s` | Main tradeoff zone |
+| Discover deep | `~53s` to `~60s` | High recall tax |
+| README enrichment tax | `+3s` to `+5s` | Stronger evidence, not better top-10 overlap in this run |
 
-Operator rule:
-
-- Native first for interactive speed.
-- Balanced for analysis and decision-grade search.
-- Deep only when heavy recall is worth doubling the balanced tax.
-
-## Intent-To-Command Mapping
+### Intent-to-command mapping
 
 | Intent | Command | Why |
 | --- | --- | --- |
-| Fastest baseline | `gitquarry search "<query>"` | Preserves native GitHub behavior and stays sub-second. |
+| Fastest baseline | `gitquarry search "<query>"` | Keeps native GitHub behavior and sub-second latency. |
 | Safer advanced default | `gitquarry search "<query>" --mode discover --depth balanced --rank quality --explain` | Best general upgrade from native without major drift. |
 | Broader semantic exploration | `gitquarry search "<query>" --mode discover --depth balanced --rank query --explain` | Highest novelty in the balanced family. |
 | Noisy infra-style query | `gitquarry search "<query>" --mode discover --depth balanced --rank blended --weight-query 0.5 --weight-activity 0.5 --weight-quality 2.0 --explain` | Best upgrade for the `api gateway` benchmark shape. |
@@ -53,85 +223,42 @@ Operator rule:
 | Language slice | `gitquarry search "<query>" --language Rust` | Cheap first pass. Add discover only if the slice still needs expansion. |
 | README evidence pass | `gitquarry search "<query>" --mode discover --depth balanced --rank quality --readme --explain` | Use after a promising result set exists and stronger evidence is needed. |
 
-## Query-Family Guidance
+### Query-family guidance
 
-### `api gateway`-style queries
-
-These are noisy, crowded, and semantically broad. Safer curation matters more than raw novelty.
-
-Best benchmarked upgrade:
+For `api gateway`-style noisy queries, prefer:
 
 ```bash
-gitquarry search "api gateway" --mode discover --depth balanced --rank blended --weight-query 0.5 --weight-activity 0.5 --weight-quality 2.0 --explain
+gitquarry search "<query>" --mode discover --depth balanced --rank blended --weight-query 0.5 --weight-activity 0.5 --weight-quality 2.0 --explain
 ```
 
-Why:
-
-- It kept `8/10` of the native top 10.
-- It retained `5/5` of the native top five.
-- It improved quality signals without paying deep-mode cost.
-
-Avoid balanced `query` here unless the operator explicitly wants semantic drift.
-
-### `terminal ui`-style queries
-
-These are lexically cleaner. Plain `quality` already performs strongly without needing heavier weighting.
-
-Best benchmarked upgrade:
+For `terminal ui`-style cleaner queries, prefer:
 
 ```bash
-gitquarry search "terminal ui" --mode discover --depth balanced --rank quality --explain
+gitquarry search "<query>" --mode discover --depth balanced --rank quality --explain
 ```
 
-Why:
+### Benchmark rules
 
-- It matched the best non-native Jaccard in the study.
-- It retained `4/5` of the native top five.
-- It was cheaper than the quality-heavy alternative.
+- Do not present discover mode as near-native.
+- Do not turn on `--readme` by default.
+- Do not recommend balanced `query` as the safest advanced preset.
+- Treat recency and language slices as different intents, not minor tweaks.
 
-If the user wants wider exploration, move to balanced `query` or query-heavy blended, but call out the lower retention.
+## Common Failure Modes
 
-## Option-Level Guidance
-
-### Rank
-
-| Rank | Use it when | Avoid it when |
+| Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `native` | Baseline preservation or validation is the priority | You expect discover to materially change the result set |
-| `quality` | You want a curated upgrade that still resembles native | You need maximum novelty |
-| `query` | You want semantic expansion and more new repos | You need strong native-core retention |
-| `activity` | Freshness is part of the search intent | You want a stable default search |
-| `blended` | You want a compromise mode or weighted tuning | You need the strongest default baseline preservation |
+| `E_AUTH_REQUIRED` | no effective token | run `auth login` or set the right env var |
+| `E_AUTH_INVALID` | empty, malformed, or wrong-host token | verify token and host, then rerun login |
+| `E_QUERY_REQUIRED` | native search without a query | add a query or use explicit discover mode with structured filters |
+| `E_FLAG_REQUIRES_MODE` | discover-only flag used without `--mode discover` | add `--mode discover` |
+| `E_FLAG_CONFLICT` | raw qualifier overlaps a structured flag, or repo shape is malformed | remove the conflict or fix `owner/repo` |
+| `E_HOST_INVALID` | empty or malformed `--host` | pass a valid hostname or API root |
 
-### Depth
+Use this troubleshooting sequence:
 
-| Depth | Use it when | Avoid it when |
-| --- | --- | --- |
-| `quick` | You only need the cheapest discover smoke test | You expect large quality gains |
-| `balanced` | You want the main analysis tier | You need native latency |
-| `deep` | You are doing explicit high-recall exploration | Time budget matters |
-
-### Optional flags
-
-| Flag | Good use | What the benchmark says |
-| --- | --- | --- |
-| `--readme` | Evidence gathering, explanation pass, result inspection | Adds `~3s` to `~5s`; no top-10 gain in this run |
-| `--updated-within 1y` | Freshness-only searches | Produces high churn; treat as a different intent |
-| `--language <lang>` | Narrowing before expansion | Native language filtering is cheap and should come first |
-
-## Failure Modes To Avoid
-
-- Do not recommend discover mode as if it were near-native. Even quick discover is a major latency jump.
-- Do not turn on `--readme` by default. The study does not justify it as a baseline toggle.
-- Do not recommend balanced `query` as the safest advanced preset. It buys novelty by sacrificing native-core retention.
-- Do not mix recency intent into ordinary discovery guidance. Freshness changes the product you are returning.
-- Do not skip stating the cost. The operator should know whether the chosen path is a sub-second baseline or a 30-second analysis run.
-
-## Escalation Pattern
-
-Use this sequence when the user wants a progressive search workflow:
-
-1. Start with `gitquarry search "<query>"`.
-2. Upgrade to balanced `quality` if the baseline is too literal or too noisy.
-3. Upgrade to balanced `query` only if the user still wants more alternatives.
-4. Add `--readme`, recency, or language constraints only when the task explicitly requires them.
+1. Verify host.
+2. Verify auth state.
+3. Verify command shape.
+4. Verify flag compatibility.
+5. Only then tune search behavior.
