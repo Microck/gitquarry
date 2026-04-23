@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_STUDY_DIR = ROOT / "target" / "benchmark-study"
 DEFAULT_OUTPUT_DIR = ROOT / "docs" / "images" / "benchmark-study"
+PNG_DENSITY = 288
 
 
 LATENCY_SCENARIOS = [
@@ -238,7 +239,19 @@ def rasterize_svg(path: Path) -> None:
     if not convert:
         return
     subprocess.run(
-        [convert, str(path), str(path.with_suffix(".png"))],
+        [
+            convert,
+            "-background",
+            "white",
+            "-density",
+            str(PNG_DENSITY),
+            str(path),
+            "-alpha",
+            "remove",
+            "-alpha",
+            "off",
+            str(path.with_suffix(".png")),
+        ],
         check=True,
     )
 

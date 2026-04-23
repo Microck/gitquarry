@@ -80,6 +80,8 @@ Balanced discover is where the real product tradeoffs live. It is the family mos
 
 ![Balanced-mode surface attribution mix](/images/benchmark-study/surface-mix.png)
 
+These PNGs are the polished showcase layer for the docs site. The exact audit trail for values and scenario comparisons still lives in `report.md`, `paired-effects.csv`, and `scenario-analysis.csv`.
+
 What these views show:
 
 - `quality` and `quality-heavy` preserve the native core far better than `query`.
@@ -157,6 +159,7 @@ The benchmark harness lives at:
 
 - [`scripts/benchmark-study.py`](../../scripts/benchmark-study.py)
 - [`scripts/render-benchmark-charts.py`](../../scripts/render-benchmark-charts.py)
+- [`scripts/generate-benchmark-showcase.py`](../../scripts/generate-benchmark-showcase.py)
 
 Build the binary first if needed:
 
@@ -182,7 +185,40 @@ Refresh all chart assets:
 python3 scripts/render-benchmark-charts.py
 ```
 
+Refresh the published showcase PNGs with `egaki` from the deterministic SVG blueprints:
+
+```bash
+python3 scripts/generate-benchmark-showcase.py
+```
+
 If `GITQUARRY_TOKEN` is not set, the runner will try to use GitHub CLI auth before failing.
+
+## Operator Playbook
+
+If the goal is to help an operator choose a mode quickly, use these presets instead of re-reading the full study every time:
+
+| Operator intent | Recommended command pattern | Why |
+| --- | --- | --- |
+| Fastest default | `gitquarry search "<query>"` | Keeps latency near the native baseline. |
+| Safer discover upgrade | `gitquarry search "<query>" --mode discover --depth balanced --rank quality --explain` | Best default non-native mode when you want better curation without throwing away the baseline core. |
+| Broader semantic exploration | `gitquarry search "<query>" --mode discover --depth balanced --rank query --explain` | Highest novelty in the balanced family. |
+| Better curated `api gateway`-style results | `gitquarry search "<query>" --mode discover --depth balanced --rank blended --weight-query 0.5 --weight-activity 0.5 --weight-quality 2.0 --explain` | This is the `quality-heavy` shape that performed best on the noisier benchmark query. |
+| Fresh repos only | `gitquarry search "<query>" --mode discover --depth balanced --rank activity --updated-within 1y --explain` | Use when freshness is a hard requirement and churn is acceptable. |
+| Language slice first | `gitquarry search "<query>" --language Rust` | Start cheap. Only add discover after confirming the slice is worth exploring semantically. |
+| README inspection pass | `gitquarry search "<query>" --mode discover --depth balanced --rank quality --readme --explain` | Use as a second pass when you need richer evidence, not as the default query path. |
+
+Default recommendation for most operators:
+
+```bash
+gitquarry search "<query>" --mode discover --depth balanced --rank quality --explain
+```
+
+Escalation rule:
+
+1. Start with native if latency matters most.
+2. Move to balanced `quality` if you need a smarter curated set.
+3. Move to balanced `query` only when you explicitly want more novel repositories.
+4. Add `--readme`, `--updated-within`, or `--language` only when the task requires that specific constraint.
 
 ## Output Files
 
@@ -199,7 +235,7 @@ Most useful outputs:
 - `report.md`
 - `raw/<query>/<scenario>.json`
 
-The docs visuals are published from `docs/images/benchmark-study/` as raster PNGs, with SVG source charts generated beside them.
+The docs visuals are published from `docs/images/benchmark-study/` as `egaki`-generated PNG showcase infographics, with deterministic SVG source charts generated beside them for rerendering and auditability. The CSV and markdown artifacts remain the exact source of truth for benchmark values.
 
 ## How To Read The Data
 

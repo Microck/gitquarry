@@ -306,6 +306,32 @@ gitquarry --host https://ghe.example.com auth login
 gitquarry --host https://ghe.example.com search "internal platform"
 ```
 
+## benchmark snapshot
+
+the repository includes a full benchmark study for `gitquarry search` under [docs/project/benchmark-study.mdx](./docs/project/benchmark-study.mdx). it compares native search, discover depth, rank modes, README enrichment, weighted blends, and recency/language slices on live GitHub data.
+
+high-level findings from the current study:
+
+- native is still the only sub-second path
+- quick discover adds roughly `~16s` to `~18s`
+- balanced discover adds roughly `~27s` to `~30s`
+- deep discover adds roughly `~53s` to `~60s`
+- README enrichment added another `~3s` to `~5s` on top of balanced discover in the benchmark queries
+- `--mode discover --depth balanced --rank quality --explain` is the best default upgrade when you want smarter curation without throwing away the native core
+- `--mode discover --depth balanced --rank query --explain` is the better fit when you explicitly want more novel repositories
+
+practical operator rule:
+
+```bash
+# safest advanced default
+gitquarry search "<query>" --mode discover --depth balanced --rank quality --explain
+
+# broader semantic expansion
+gitquarry search "<query>" --mode discover --depth balanced --rank query --explain
+```
+
+the benchmark docs include the full recommendation matrix, query-specific findings, visual study assets, and the reproducible benchmark/showcase pipeline.
+
 ## what it looks like
 
 if you want a quick feel for the CLI before installing it, this is the kind of command surface it exposes:
