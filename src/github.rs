@@ -11,6 +11,9 @@ use url::Url;
 
 const API_VERSION: &str = "2026-03-10";
 
+/// Maximum retry attempts for rate-limited requests (initial + retries).
+const MAX_RETRY_ATTEMPTS: usize = 3;
+
 #[derive(Clone)]
 pub struct GitHubClient {
     http: Client,
@@ -39,7 +42,9 @@ impl GitHubClient {
             "X-GitHub-Api-Version",
             HeaderValue::from_static(API_VERSION),
         );
-        headers.insert(USER_AGENT, HeaderValue::from_static("gitquarry/0.1.3"));
+        headers.insert(USER_AGENT, HeaderValue::from_str(&format!("gitquarry/{}", env!("CARGO_PKG_VERSION"))).map_err(|err| {
+            AppError::with_detail("E_HTTP", "invalid user-agent header", err.to_string())
+        })?);
         headers.insert(
             AUTHORIZATION,
             HeaderValue::from_str(&format!("Bearer {}", token.into())).map_err(|err| {
@@ -61,7 +66,9 @@ impl GitHubClient {
         })
     }
 
-    pub fn validate_token(&self) -> AppResult<AuthIdentity> {
+    /// Fetches the authenticated user identity by calling the GitHub /user endpoint.
+    /// This validates the token and returns the user's login.
+    pub fn fetch_authenticated_user(&self) -> AppResult<AuthIdentity> {
         let response = self.send_with_retry(|| self.http.get(format!("{}/user", self.api_base)))?;
         let user: AuthUser = parse_json(response)?;
         Ok(AuthIdentity { login: user.login })
@@ -197,7 +204,7 @@ impl GitHubClient {
             }
 
             if (response.status().as_u16() == 403 || response.status().as_u16() == 429)
-                && attempts < 3
+                && attempts < MAX_RETRY_ATTEMPTS
             {
                 let wait = retry_delay(&response)
                     .unwrap_or_else(|| Duration::from_millis((attempts * 1_000) as u64 + jitter()));

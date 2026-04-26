@@ -77,24 +77,28 @@ fn compare(
     rank: RankMode,
     scores_by_repo: &HashMap<String, ComputedScores>,
 ) -> Ordering {
+    // RankMode::Native is handled earlier in the call chain (app.rs ensures rerank is only called
+    // when rank != RankMode::Native). This function should never receive RankMode::Native.
+    debug_assert!(!matches!(rank, RankMode::Native));
+
     let score = |repo: &Repository| {
         scores_by_repo
             .get(&repo.full_name)
             .expect("missing score entry")
     };
     let left_score = match rank {
-        RankMode::Native => return Ordering::Equal,
         RankMode::Query => score(left).query,
         RankMode::Activity => score(left).activity,
         RankMode::Quality => score(left).quality,
         RankMode::Blended => score(left).blended,
+        RankMode::Native => unreachable!("RankMode::Native should never reach compare()"),
     };
     let right_score = match rank {
-        RankMode::Native => return Ordering::Equal,
         RankMode::Query => score(right).query,
         RankMode::Activity => score(right).activity,
         RankMode::Quality => score(right).quality,
         RankMode::Blended => score(right).blended,
+        RankMode::Native => unreachable!("RankMode::Native should never reach compare()"),
     };
 
     right_score

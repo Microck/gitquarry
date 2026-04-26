@@ -35,9 +35,7 @@ pub fn resolve_token(host: &HostContext, config: &ConfigBundle) -> AppResult<Cre
         Ok(Some(token)) => return Ok(CredentialResolution { token }),
         Ok(None) => {}
         Err(err) if allow_insecure_storage() && keyring_read_is_unavailable(&err) => {
-            if allow_insecure_storage()
-                && let Some(token) = read_insecure_file(host, config)?
-            {
+            if let Some(token) = read_insecure_file(host, config)? {
                 return Ok(CredentialResolution { token });
             }
         }
@@ -72,7 +70,7 @@ pub fn saved_credential_source(
         Ok(Some(_)) => return Ok(Some(CredentialSource::Keyring)),
         Ok(None) => {}
         Err(err) if allow_insecure_storage() && keyring_read_is_unavailable(&err) => {
-            if allow_insecure_storage() && read_insecure_file(host, config)?.is_some() {
+            if read_insecure_file(host, config)?.is_some() {
                 return Ok(Some(CredentialSource::InsecureFile));
             }
         }

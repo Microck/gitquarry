@@ -22,7 +22,6 @@ use chrono::{Duration, Utc};
 use clap::{CommandFactory, Parser, error::ErrorKind};
 use clap_complete::generate;
 use rayon::prelude::*;
-use std::collections::HashMap;
 use std::io::{self, IsTerminal, Read, Write};
 use std::process::exit;
 
@@ -273,7 +272,7 @@ fn auth_login(config: &ConfigBundle, host: &HostContext, args: &AuthLoginArgs) -
     }
 
     let client = GitHubClient::new(host.api_base.clone(), token.clone())?;
-    let identity = client.validate_token()?;
+    let identity = client.fetch_authenticated_user()?;
     let source = save_token(host, &token, config)?;
     if matches!(source, CredentialSource::InsecureFile) {
         eprintln!(
@@ -398,20 +397,21 @@ fn discovery_search(
     plan: &crate::query::SearchPlan,
     show_progress: bool,
 ) -> AppResult<Vec<Repository>> {
+    use std::collections::HashSet;
+
     let target = discovery_target(plan.depth, plan.limit);
     let mut pool = Vec::new();
-    let mut seen = HashMap::<String, usize>::new();
+    let mut seen = HashSet::new();
 
-    let collect =
-        |pool: &mut Vec<Repository>, seen: &mut HashMap<String, usize>, repos: Vec<Repository>| {
-            for repo in repos {
-                if seen.contains_key(&repo.full_name) {
-                    continue;
-                }
-                seen.insert(repo.full_name.clone(), pool.len());
-                pool.push(repo);
+    let collect = |pool: &mut Vec<Repository>, seen: &mut HashSet<String>, repos: Vec<Repository>| {
+        for repo in repos {
+            if seen.contains(&repo.full_name) {
+                continue;
             }
-        };
+            seen.insert(repo.full_name.clone());
+            pool.push(repo);
+        }
+    };
 
     progress(
         show_progress,

@@ -22,15 +22,20 @@ pub struct SearchPlan {
     pub weights: ScoreWeights,
     pub concurrency: usize,
     pub progress: ProgressMode,
-    pub post_filters: PostFilters,
-    pub native_query_present: bool,
+    pub post_filters: UpdatedPostFilters,
 }
 
+/// Post-filters applied after GitHub API query completion.
+/// Only contains `updated` date filters because the GitHub API lacks an `updated` qualifier
+/// for repository search, so this must be applied post-query.
 #[derive(Debug, Clone, Default, Serialize)]
-pub struct PostFilters {
+pub struct UpdatedPostFilters {
     pub updated_after: Option<DateTime<Utc>>,
     pub updated_before: Option<DateTime<Utc>>,
 }
+
+/// Backward-compatible alias for UpdatedPostFilters.
+pub type PostFilters = UpdatedPostFilters;
 
 pub fn build_search_plan(
     args: &SearchArgs,
@@ -105,11 +110,10 @@ pub fn build_search_plan(
         weights,
         concurrency,
         progress,
-        post_filters: PostFilters {
+        post_filters: UpdatedPostFilters {
             updated_after: absolute_or_relative(&args.updated_after, &args.updated_within, now)?,
             updated_before: parse_date_opt(args.updated_before.as_deref())?.map(as_utc_end),
         },
-        native_query_present: base_query.is_some(),
     })
 }
 
@@ -489,7 +493,7 @@ fn as_utc_end(date: NaiveDate) -> DateTime<Utc> {
 
 pub fn apply_post_filters<'a>(
     repos: impl IntoIterator<Item = &'a crate::model::Repository>,
-    filters: &PostFilters,
+    filters: &UpdatedPostFilters,
 ) -> Vec<crate::model::Repository> {
     repos
         .into_iter()
@@ -720,7 +724,6 @@ mod tests {
             plan.compiled_query,
             "rust cli user:microck language:Rust language:TypeScript topic:cli license:mit stars:>=100 forks:<=50 created:>=2024-01-01 pushed:<=2026-04-20"
         );
-        assert!(plan.native_query_present);
     }
 
     #[test]
@@ -739,7 +742,6 @@ mod tests {
         .unwrap();
 
         assert_eq!(plan.compiled_query, "stars:>=1");
-        assert!(!plan.native_query_present);
     }
 
     #[test]
@@ -968,7 +970,7 @@ mod tests {
             ),
             repo("late", Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap()),
         ];
-        let filters = super::PostFilters {
+        let filters = super::UpdatedPostFilters {
             updated_after: Some(Utc.with_ymd_and_hms(2026, 4, 5, 0, 0, 0).unwrap()),
             updated_before: Some(Utc.with_ymd_and_hms(2026, 4, 20, 23, 59, 59).unwrap()),
         };

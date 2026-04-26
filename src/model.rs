@@ -170,6 +170,11 @@ pub struct Repository {
     pub explain: Option<ExplainScore>,
 }
 
+/// Search output containing matched repositories.
+///
+/// Note: `total_count` semantics differ between retrieval modes:
+/// - In Native mode: total count from GitHub API (total matching repos across all pages)
+/// - In Discover mode: total count is the local pool size before post-filtering/truncation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchOutput {
     pub host: String,
