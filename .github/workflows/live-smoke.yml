@@ -3,6 +3,10 @@ name: Live Smoke
 on:
   workflow_dispatch:
 
+concurrency:
+  group: live-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -67,3 +71,7 @@ jobs:
           GITQUARRY_CONFIG_DIR="$TMPDIR" \
           GITQUARRY_ALLOW_INSECURE_STORAGE=1 \
           target/debug/gitquarry search "rust cli" --limit 1 --format compact > "$TMPDIR/persisted-search.json"
+
+          jq -e '.items | length > 0' "$TMPDIR/search.json" > /dev/null
+          jq -e '.repository.full_name == "rust-lang/rust"' "$TMPDIR/inspect.json" > /dev/null
+          jq -e '.items | length == 1' "$TMPDIR/persisted-search.json" > /dev/null
