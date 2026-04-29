@@ -232,7 +232,12 @@ jobs:
 
       - name: Publish to npm
         if: steps.token-check.outputs.has_token == 'true'
-        run: npm publish ./npm --access public --provenance
+        run: |
+          if npm publish ./npm --access public --provenance; then
+            exit 0
+          fi
+
+          echo "::warning::npm publish failed. GitHub release assets are already published; fix NPM_TOKEN/package permissions and publish the npm wrapper manually if needed."
 
   publish-release:
     name: Publish release

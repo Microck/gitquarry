@@ -6,6 +6,11 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+## [0.1.6]
+
+- Keep GitHub release publishing green when npm registry permissions reject wrapper publish
+- Republish the source retrieval release with non-blocking npm publishing
+
 ## [0.1.5]
 
 - Add `gitquarry source path` for explicit `opensrc`-backed source retrieval
