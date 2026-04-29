@@ -6,10 +6,15 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
-## [0.1.4]
+## [0.1.5]
 
 - Add `gitquarry source path` for explicit `opensrc`-backed source retrieval
 - Document source retrieval behavior, output shape, and failure codes
+- Fix release workflow Rust target installation to match the pinned toolchain
+
+## [0.1.4]
+
+- Attempted release superseded by `0.1.5` before public release artifacts were published
 
 ## [0.1.3]
 

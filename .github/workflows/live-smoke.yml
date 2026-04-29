@@ -38,7 +38,7 @@ jobs:
 
       - name: Install Rust
         if: steps.token-check.outputs.has_token == 'true'
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.94.0
 
       - name: Cache Rust artifacts
         if: steps.token-check.outputs.has_token == 'true'
