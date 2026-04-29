@@ -9,5 +9,6 @@ mod model;
 mod output;
 mod query;
 mod score;
+mod source;
 
 pub use app::main_entry;

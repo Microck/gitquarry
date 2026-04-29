@@ -6,6 +6,11 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+## [0.1.4]
+
+- Add `gitquarry source path` for explicit `opensrc`-backed source retrieval
+- Document source retrieval behavior, output shape, and failure codes
+
 ## [0.1.3]
 
 - Move the Intel macOS release build onto `macos-latest` to avoid blocked `macos-13` runner capacity

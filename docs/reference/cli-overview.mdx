@@ -12,6 +12,7 @@ Gitquarry has a deliberately small root command surface.
 ```bash
 gitquarry search [OPTIONS] [QUERY]
 gitquarry inspect [OPTIONS] <OWNER/REPO>
+gitquarry source path [OPTIONS] <SPEC>
 gitquarry auth login|status|logout
 gitquarry config path|show
 gitquarry version
@@ -55,6 +56,7 @@ Supported values:
 | --- | --- |
 | `search` | repository discovery and ranking |
 | `inspect` | explicit `owner/repo` inspection |
+| `source` | explicit opensrc-backed source retrieval |
 | `auth` | host-scoped PAT management |
 | `config` | inspect effective config path and payload |
 | `version` | print the current version |
@@ -65,5 +67,6 @@ The most important root-level rule is:
 
 - plain `search` stays close to native GitHub repository search
 - enhanced discovery stays explicit
+- source fetching stays explicit through `source path`
 
 That contract is defined in [Search Behavior](/reference/search-behavior) and the repo spec.

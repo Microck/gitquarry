@@ -1,0 +1,71 @@
+---
+title: "source"
+description: "Reference for gitquarry source path, the explicit opensrc-backed source retrieval command."
+---
+
+# `gitquarry source`
+
+Fetch or locate source code through `opensrc`.
+
+## Synopsis
+
+```bash
+gitquarry source path [OPTIONS] <SPEC>
+```
+
+## Behavior
+
+`source path` is explicit. It does not run during `search` or `inspect`.
+
+The command delegates source retrieval and caching to `opensrc path`, then prints the resolved absolute path on `stdout`. Fetch progress and errors stay on `stderr`.
+
+`<SPEC>` follows `opensrc` syntax, including:
+
+- `owner/repo`
+- GitHub URLs
+- npm package names
+- `pypi:<package>`
+- `crates:<crate>`
+
+## Options
+
+```bash
+--cwd <PATH>
+--verbose
+```
+
+`--cwd` is forwarded to `opensrc` for lockfile-based version resolution.
+
+`--verbose` lets `opensrc` show fetch progress on `stderr`.
+
+## Examples
+
+Fetch or locate a GitHub repository:
+
+```bash
+gitquarry source path vercel/next.js
+```
+
+Use the path in a shell workflow:
+
+```bash
+rg "Router" "$(gitquarry source path vercel/next.js)"/packages/next/src
+```
+
+Fetch or locate a Rust crate:
+
+```bash
+gitquarry source path crates:serde
+```
+
+Resolve package versions from a project lockfile:
+
+```bash
+gitquarry source path zod --cwd ./my-app
+```
+
+## Failure Shape
+
+If `opensrc` is not installed or not on `PATH`, gitquarry exits with `E_SOURCE_UNAVAILABLE`.
+
+If `opensrc` runs but cannot fetch or resolve the source, gitquarry exits with `E_SOURCE_FETCH`.

@@ -23,6 +23,7 @@ The core contract is:
 
 - `gitquarry search [OPTIONS] [QUERY]`
 - `gitquarry inspect [OPTIONS] <OWNER/REPO>`
+- `gitquarry source path [OPTIONS] <SPEC>`
 - `gitquarry auth login [OPTIONS]`
 - `gitquarry auth status [OPTIONS]`
 - `gitquarry auth logout [OPTIONS]`
@@ -438,6 +439,28 @@ gitquarry inspect [OPTIONS] <OWNER/REPO>
 
 - `--readme`
 - `--format pretty|json|compact|csv`
+
+## Source
+
+### Synopsis
+
+```bash
+gitquarry source path [OPTIONS] <SPEC>
+```
+
+### Behavior
+
+- source fetching is explicit and never happens during `search` or `inspect`
+- `source path` delegates retrieval and caching to `opensrc path`
+- stdout is the resolved source path only
+- `opensrc` progress and errors stay on stderr
+- if `opensrc` is unavailable, fail with `E_SOURCE_UNAVAILABLE`
+- if `opensrc` runs and fails, fail with `E_SOURCE_FETCH`
+
+### Source Flags
+
+- `--cwd <PATH>`
+- `--verbose`
 
 ## Progress
 

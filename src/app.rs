@@ -1,6 +1,6 @@
 use crate::cli::{
     AuthArgs, AuthCommand, AuthLoginArgs, Cli, Command, ConfigArgs, ConfigCommand, InspectArgs,
-    SearchArgs,
+    SearchArgs, SourceArgs, SourceCommand,
 };
 use crate::config::ConfigBundle;
 use crate::credential::{
@@ -71,6 +71,7 @@ fn run() -> AppResult<()> {
     match &cli.command {
         Some(Command::Search(args)) => search_command(&cli, &config, args),
         Some(Command::Inspect(args)) => inspect_command(&cli, &config, args),
+        Some(Command::Source(args)) => source_command(args),
         Some(Command::Auth(args)) => auth_command(&cli, &config, args),
         Some(Command::Config(args)) => config_command(&config, args),
         Some(Command::Version) => write_line(&format!("gitquarry {}", env!("CARGO_PKG_VERSION"))),
@@ -83,6 +84,12 @@ fn run() -> AppResult<()> {
                 AppError::with_detail("E_OUTPUT", "failed to write help newline", err.to_string())
             })
         }
+    }
+}
+
+fn source_command(args: &SourceArgs) -> AppResult<()> {
+    match &args.command {
+        SourceCommand::Path(path_args) => crate::source::path(path_args),
     }
 }
 

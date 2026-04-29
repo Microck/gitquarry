@@ -47,6 +47,7 @@ jobs:
         run: |
           cargo run --locked -- --help
           cargo run --locked -- search --help
+          cargo run --locked -- source path --help
           cargo run --locked -- auth login --help
 
   test-matrix:

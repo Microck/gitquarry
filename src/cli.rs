@@ -4,6 +4,7 @@ use crate::model::{
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum CompletionShell {
@@ -50,6 +51,8 @@ pub enum Command {
     Search(Box<SearchArgs>),
     /// Inspect one explicit owner/repo.
     Inspect(InspectArgs),
+    /// Fetch or locate source code through opensrc.
+    Source(SourceArgs),
     /// Manage host-scoped personal access tokens.
     Auth(AuthArgs),
     /// Show config path or the effective config payload.
@@ -224,6 +227,32 @@ pub struct InspectArgs {
     /// Progress output mode for stderr.
     #[arg(long, value_enum)]
     pub progress: Option<ProgressMode>,
+}
+
+#[derive(Debug, Args)]
+pub struct SourceArgs {
+    #[command(subcommand)]
+    pub command: SourceCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SourceCommand {
+    /// Print the cached source path, fetching on cache miss.
+    Path(SourcePathArgs),
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct SourcePathArgs {
+    /// Package or repository spec accepted by opensrc, such as owner/repo or crates:serde.
+    pub spec: String,
+
+    /// Working directory for opensrc lockfile version resolution.
+    #[arg(long)]
+    pub cwd: Option<PathBuf>,
+
+    /// Show opensrc fetch progress on stderr.
+    #[arg(long, default_value_t = false)]
+    pub verbose: bool,
 }
 
 #[derive(Debug, Args)]

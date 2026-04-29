@@ -159,6 +159,7 @@ for a GitHub Enterprise host, gitquarry derives the env var name from the normal
 | --- | --- |
 | `gitquarry search` | search public repositories with native mode by default and explicit discover mode when requested |
 | `gitquarry inspect` | inspect one explicit `owner/repo` with optional README inclusion |
+| `gitquarry source` | fetch or locate source code through `opensrc` when explicitly requested |
 | `gitquarry auth` | save, inspect, and remove host-scoped personal access tokens |
 | `gitquarry config` | print the effective config path or effective config payload |
 | `gitquarry version` | print the current gitquarry version |
@@ -177,6 +178,7 @@ root commands:
 ```bash
 gitquarry search [OPTIONS] [QUERY]
 gitquarry inspect [OPTIONS] <OWNER/REPO>
+gitquarry source path [OPTIONS] <SPEC>
 gitquarry auth login|status|logout
 gitquarry config path|show
 gitquarry version
@@ -198,6 +200,12 @@ inspect-specific controls stay intentionally narrow:
 - `--readme`
 - `--format pretty|json|compact|csv`
 - `--progress auto|on|off`
+
+source-specific controls are explicit and delegated to `opensrc`:
+
+- `gitquarry source path <SPEC>`
+- `--cwd <PATH>`
+- `--verbose`
 
 config is intentionally conservative. saved defaults can cover things like `host`, `format`, `limit`, `progress`, and `color`, but not flags that would silently enable enhanced search behavior.
 
@@ -284,6 +292,13 @@ inspect the same repository with README content in JSON:
 
 ```bash
 gitquarry inspect rust-lang/rust --readme --format json
+```
+
+fetch or locate source code through `opensrc`:
+
+```bash
+gitquarry source path rust-lang/rust
+rg "fn main" "$(gitquarry source path rust-lang/rust)"
 ```
 
 pipe structured output without polluting stdout with progress:
@@ -401,6 +416,7 @@ for the fuller install matrix and release operations, use the [installation guid
 - [discovery mode guide](./docs/guides/discovery-mode.mdx)
 - [search command reference](./docs/commands/search.mdx)
 - [inspect command reference](./docs/commands/inspect.mdx)
+- [source command reference](./docs/commands/source.mdx)
 - [auth command reference](./docs/commands/auth.mdx)
 - [config command reference](./docs/commands/config.mdx)
 - [output contract](./docs/reference/output-contract.mdx)

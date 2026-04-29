@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -259,11 +260,76 @@ fn bare_command(temp: &TempDir, host: &str) -> Command {
     command
 }
 
+fn local_command(temp: &TempDir) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_gitquarry"));
+    command.env("GITQUARRY_CONFIG_DIR", temp.path());
+    command
+}
+
 fn host_key(host: &str) -> String {
     host.trim_start_matches("http://")
         .trim_start_matches("https://")
         .trim_end_matches("/api/v3")
         .to_string()
+}
+
+#[cfg(unix)]
+fn fake_opensrc(temp: &TempDir, script: &str) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    let path = temp.path().join("opensrc");
+    fs::write(&path, script).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    path
+}
+
+#[cfg(windows)]
+fn fake_opensrc(temp: &TempDir, script: &str) -> PathBuf {
+    let path = temp.path().join("opensrc.cmd");
+    fs::write(&path, script).unwrap();
+    path
+}
+
+fn successful_opensrc_script() -> &'static str {
+    if cfg!(windows) {
+        r#"@echo off
+if not "%1"=="path" exit /b 11
+if not "%2"=="--cwd" exit /b 12
+if not "%3"=="%GITQUARRY_FAKE_CWD%" exit /b 13
+if not "%4"=="--verbose" exit /b 14
+if not "%5"=="%GITQUARRY_FAKE_SPEC%" exit /b 15
+echo fetching fixture 1>&2
+echo %GITQUARRY_FAKE_PATH%
+"#
+    } else {
+        r#"#!/bin/sh
+if [ "$1" != "path" ]; then exit 11; fi
+if [ "$2" != "--cwd" ]; then exit 12; fi
+if [ "$3" != "$GITQUARRY_FAKE_CWD" ]; then exit 13; fi
+if [ "$4" != "--verbose" ]; then exit 14; fi
+if [ "$5" != "$GITQUARRY_FAKE_SPEC" ]; then exit 15; fi
+printf '%s\n' 'fetching fixture' >&2
+printf '%s\n' "$GITQUARRY_FAKE_PATH"
+"#
+    }
+}
+
+fn failing_opensrc_script() -> &'static str {
+    if cfg!(windows) {
+        r#"@echo off
+echo fixture failure 1>&2
+exit /b 7
+"#
+    } else {
+        r#"#!/bin/sh
+printf '%s\n' 'fixture failure' >&2
+exit 7
+"#
+    }
+}
+
+fn display_path(path: &Path) -> String {
+    path.display().to_string()
 }
 
 #[test]
@@ -332,6 +398,77 @@ fn inspect_json_returns_metadata_and_readme() {
         payload["repository"]["latest_release"]["tag_name"],
         "v1.2.3"
     );
+}
+
+#[test]
+fn source_path_delegates_to_opensrc_and_prints_path_only() {
+    let temp = TempDir::new().unwrap();
+    let fake = fake_opensrc(&temp, successful_opensrc_script());
+    let fake_cwd = temp.path().join("project");
+    let fake_path = temp.path().join("sources").join("vercel").join("next.js");
+    let fake_cwd_display = display_path(&fake_cwd);
+    let fake_path_display = display_path(&fake_path);
+    let fake_spec = "vercel/next.js";
+
+    let output = local_command(&temp)
+        .env("GITQUARRY_OPENSRC_BIN", &fake)
+        .env("GITQUARRY_FAKE_CWD", &fake_cwd_display)
+        .env("GITQUARRY_FAKE_PATH", &fake_path_display)
+        .env("GITQUARRY_FAKE_SPEC", fake_spec)
+        .args([
+            "source",
+            "path",
+            fake_spec,
+            "--cwd",
+            &fake_cwd_display,
+            "--verbose",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(stdout.trim(), fake_path_display);
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("fetching fixture"));
+}
+
+#[test]
+fn source_path_reports_missing_opensrc() {
+    let temp = TempDir::new().unwrap();
+    let missing = temp.path().join("missing-opensrc");
+
+    let output = local_command(&temp)
+        .env("GITQUARRY_OPENSRC_BIN", missing)
+        .args(["source", "path", "vercel/next.js"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("E_SOURCE_UNAVAILABLE"));
+    assert!(stderr.contains("npm install -g opensrc"));
+}
+
+#[test]
+fn source_path_reports_opensrc_failures() {
+    let temp = TempDir::new().unwrap();
+    let fake = fake_opensrc(&temp, failing_opensrc_script());
+
+    let output = local_command(&temp)
+        .env("GITQUARRY_OPENSRC_BIN", fake)
+        .args(["source", "path", "missing/repo"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("fixture failure"));
+    assert!(stderr.contains("E_SOURCE_FETCH"));
 }
 
 #[test]

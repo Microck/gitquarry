@@ -91,6 +91,20 @@ An optional GitHub resource was not found.
 
 This is often handled internally for README or latest-release fetches, but can still surface in some flows.
 
+### `E_SOURCE_UNAVAILABLE`
+
+`opensrc` was not installed or was not available on `PATH` when `source path` was requested.
+
+Typical fix:
+
+```bash
+npm install -g opensrc
+```
+
+### `E_SOURCE_FETCH`
+
+`opensrc` ran but could not fetch or resolve the requested source.
+
 ### `E_OUTPUT`
 
 Stdout, stderr, JSON, CSV, or help rendering failed.
