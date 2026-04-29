@@ -293,11 +293,11 @@ fn fake_opensrc(temp: &TempDir, script: &str) -> PathBuf {
 fn successful_opensrc_script() -> &'static str {
     if cfg!(windows) {
         r#"@echo off
-if not "%1"=="path" exit /b 11
-if not "%2"=="--cwd" exit /b 12
-if not "%3"=="%GITQUARRY_FAKE_CWD%" exit /b 13
-if not "%4"=="--verbose" exit /b 14
-if not "%5"=="%GITQUARRY_FAKE_SPEC%" exit /b 15
+if not "%~1"=="path" exit /b 11
+if not "%~2"=="--cwd" exit /b 12
+if not "%~3"=="%GITQUARRY_FAKE_CWD%" exit /b 13
+if not "%~4"=="--verbose" exit /b 14
+if not "%~5"=="%GITQUARRY_FAKE_SPEC%" exit /b 15
 echo fetching fixture 1>&2
 echo %GITQUARRY_FAKE_PATH%
 "#
