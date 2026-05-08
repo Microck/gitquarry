@@ -1,5 +1,8 @@
 use crate::error::{AppError, AppResult};
-use crate::model::{ColorPreference, InspectOutput, OutputFormat, Repository, SearchOutput};
+use crate::model::{
+    CodeSearchOutput, ColorPreference, InspectOutput, OutputFormat, Repository, SearchOutput,
+    TreeEntryKind, TreeOutput,
+};
 use anstream::eprintln;
 use csv::Writer;
 use std::io::{self, IsTerminal, Write};
@@ -30,6 +33,32 @@ pub fn write_inspect(
         OutputFormat::Json => print_json(output, true),
         OutputFormat::Compact => print_json(output, false),
         OutputFormat::Csv => print_csv(std::slice::from_ref(&output.repository)),
+    }
+}
+
+pub fn write_tree(
+    output: &TreeOutput,
+    format: OutputFormat,
+    color: ColorPreference,
+) -> AppResult<()> {
+    match format {
+        OutputFormat::Pretty => print_pretty_tree(output, color),
+        OutputFormat::Json => print_json(output, true),
+        OutputFormat::Compact => print_json(output, false),
+        OutputFormat::Csv => print_tree_csv(output),
+    }
+}
+
+pub fn write_code_search(
+    output: &CodeSearchOutput,
+    format: OutputFormat,
+    color: ColorPreference,
+) -> AppResult<()> {
+    match format {
+        OutputFormat::Pretty => print_pretty_code_search(output, color),
+        OutputFormat::Json => print_json(output, true),
+        OutputFormat::Compact => print_json(output, false),
+        OutputFormat::Csv => print_code_csv(output),
     }
 }
 
@@ -90,6 +119,78 @@ fn print_pretty_inspect(output: &InspectOutput, color: ColorPreference) -> AppRe
         )
     })?;
     write_repo_detail(&mut stdout, &output.repository)?;
+    Ok(())
+}
+
+fn print_pretty_tree(output: &TreeOutput, color: ColorPreference) -> AppResult<()> {
+    let mut stdout = io::stdout().lock();
+    writeln!(
+        stdout,
+        "{}{}{}  ref={} entries={} truncated={}",
+        accent(color),
+        output.repository,
+        reset(color),
+        output.reference,
+        output.total_count,
+        output.truncated
+    )
+    .map_err(|err| {
+        AppError::with_detail("E_OUTPUT", "failed to write tree output", err.to_string())
+    })?;
+
+    for entry in &output.items {
+        let depth = entry.path.matches('/').count();
+        let name = entry.path.rsplit('/').next().unwrap_or(entry.path.as_str());
+        let marker = match entry.kind {
+            TreeEntryKind::Tree => "/",
+            TreeEntryKind::Blob => "",
+            TreeEntryKind::Commit => " @",
+        };
+        writeln!(stdout, "{}{}{}", "  ".repeat(depth + 1), name, marker).map_err(|err| {
+            AppError::with_detail("E_OUTPUT", "failed to write tree output", err.to_string())
+        })?;
+    }
+
+    Ok(())
+}
+
+fn print_pretty_code_search(output: &CodeSearchOutput, color: ColorPreference) -> AppResult<()> {
+    let mut stdout = io::stdout().lock();
+    writeln!(
+        stdout,
+        "{}{} matches{}  repo={} ref={} files={} skipped={}",
+        accent(color),
+        output.total_count,
+        reset(color),
+        output.repository,
+        output.reference,
+        output.searched_files,
+        output.skipped_files
+    )
+    .map_err(|err| {
+        AppError::with_detail("E_OUTPUT", "failed to write code output", err.to_string())
+    })?;
+
+    for item in &output.items {
+        writeln!(
+            stdout,
+            "\n{}{}:{}{}",
+            accent(color),
+            item.path,
+            item.line,
+            reset(color)
+        )
+        .map_err(|err| {
+            AppError::with_detail("E_OUTPUT", "failed to write code output", err.to_string())
+        })?;
+        for line in &item.lines {
+            let prefix = if line.matched { ">" } else { " " };
+            writeln!(stdout, "{prefix} {:>5} | {}", line.line, line.text).map_err(|err| {
+                AppError::with_detail("E_OUTPUT", "failed to write code output", err.to_string())
+            })?;
+        }
+    }
+
     Ok(())
 }
 
@@ -402,6 +503,61 @@ fn render_csv(repos: &[Repository]) -> AppResult<String> {
         AppError::with_detail("E_OUTPUT", "failed to decode CSV output", err.to_string())
     })?;
     Ok(raw)
+}
+
+fn print_tree_csv(output: &TreeOutput) -> AppResult<()> {
+    let mut writer = Writer::from_writer(Vec::new());
+    writer
+        .write_record(["path", "type", "size"])
+        .map_err(|err| {
+            AppError::with_detail("E_OUTPUT", "failed to write CSV header", err.to_string())
+        })?;
+    for entry in &output.items {
+        writer
+            .write_record([
+                entry.path.clone(),
+                format!("{:?}", entry.kind).to_lowercase(),
+                entry
+                    .size
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+            ])
+            .map_err(|err| {
+                AppError::with_detail("E_OUTPUT", "failed to write CSV row", err.to_string())
+            })?;
+    }
+    let bytes = writer.into_inner().map_err(|err| {
+        AppError::with_detail("E_OUTPUT", "failed to flush CSV output", err.to_string())
+    })?;
+    let raw = String::from_utf8(bytes).map_err(|err| {
+        AppError::with_detail("E_OUTPUT", "failed to decode CSV output", err.to_string())
+    })?;
+    write_line(raw.trim_end())
+}
+
+fn print_code_csv(output: &CodeSearchOutput) -> AppResult<()> {
+    let mut writer = Writer::from_writer(Vec::new());
+    writer
+        .write_record(["path", "line", "text"])
+        .map_err(|err| {
+            AppError::with_detail("E_OUTPUT", "failed to write CSV header", err.to_string())
+        })?;
+    for item in &output.items {
+        if let Some(line) = item.lines.iter().find(|line| line.matched) {
+            writer
+                .write_record([item.path.clone(), item.line.to_string(), line.text.clone()])
+                .map_err(|err| {
+                    AppError::with_detail("E_OUTPUT", "failed to write CSV row", err.to_string())
+                })?;
+        }
+    }
+    let bytes = writer.into_inner().map_err(|err| {
+        AppError::with_detail("E_OUTPUT", "failed to flush CSV output", err.to_string())
+    })?;
+    let raw = String::from_utf8(bytes).map_err(|err| {
+        AppError::with_detail("E_OUTPUT", "failed to decode CSV output", err.to_string())
+    })?;
+    write_line(raw.trim_end())
 }
 
 fn accent(color: ColorPreference) -> &'static str {

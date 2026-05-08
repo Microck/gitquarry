@@ -8,7 +8,7 @@
 - Primary language: Rust
 - Canonical docs: https://gitquarry.micr.dev/
 - Source repo: https://github.com/Microck/gitquarry
-- Main commands: `search`, `inspect`, `auth`, `config`, `version`
+- Main commands: `search`, `inspect`, `tree`, `code`, `source`, `auth`, `config`, `version`
 - Install surfaces: npm, Homebrew, Scoop, AUR, GitHub Releases, Nix, source build
 - Auth model: PAT-only in v1, host-scoped, secure storage first, explicit insecure fallback only
 - Output contract: `pretty`, `json`, `compact`, `csv`; progress on `stderr`; errors are symbolic plain text
@@ -31,6 +31,8 @@
 
 - [search](https://gitquarry.micr.dev/commands/search): Search public repositories. Supports native mode by default and explicit discover mode with alternative rank strategies.
 - [inspect](https://gitquarry.micr.dev/commands/inspect): Inspect a single explicit `owner/repo`. Optional README inclusion. Metadata-first by default.
+- [tree](https://gitquarry.micr.dev/commands/tree): Inspect a repository tree through GitHub without cloning. Supports path glob filters, text containment, depth limits, refs, and structured output.
+- [code](https://gitquarry.micr.dev/commands/code): Search repository file contents through GitHub without cloning. Supports literal or regex search, path filters, context lines, match limits, refs, and structured output.
 - [auth](https://gitquarry.micr.dev/commands/auth): Manage host-scoped personal access tokens through `login`, `status`, and `logout`.
 - [config](https://gitquarry.micr.dev/commands/config): Print the effective config path and the effective config payload.
 

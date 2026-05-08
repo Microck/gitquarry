@@ -27,6 +27,8 @@
 
 - [search](https://gitquarry.micr.dev/commands/search): Primary repository search command with native and discover modes.
 - [inspect](https://gitquarry.micr.dev/commands/inspect): Explicit `owner/repo` inspection with optional README inclusion.
+- [tree](https://gitquarry.micr.dev/commands/tree): No-clone repository tree inspection with glob, text, depth, ref, and structured output controls.
+- [code](https://gitquarry.micr.dev/commands/code): No-clone repository code search with path filters, literal or regex matching, context, and structured output.
 - [auth](https://gitquarry.micr.dev/commands/auth): Host-scoped PAT login, status, and logout.
 - [config](https://gitquarry.micr.dev/commands/config): Effective config path and config payload inspection.
 
@@ -36,7 +38,7 @@
 - [Config And Credentials](https://gitquarry.micr.dev/reference/config-and-credentials): Config fields, `GITQUARRY_CONFIG_DIR`, token precedence, and auth storage rules.
 - [Engine Internals](https://gitquarry.micr.dev/reference/engine-internals): Native search, discover expansion, retries, scoring, and README window behavior.
 - [Output Contract](https://gitquarry.micr.dev/reference/output-contract): stdout vs stderr rules and scripting guarantees.
-- [Output Schemas](https://gitquarry.micr.dev/reference/output-schemas): Exact JSON and CSV shapes for `search` and `inspect`.
+- [Output Schemas](https://gitquarry.micr.dev/reference/output-schemas): Exact JSON and CSV shapes for `search`, `inspect`, `tree`, and `code`.
 - [Error Reference](https://gitquarry.micr.dev/reference/error-reference): Stable error codes and typical fixes.
 - [Search Behavior](https://gitquarry.micr.dev/reference/search-behavior): Behavioral contract for native vs discover semantics.
 - [Specification](https://gitquarry.micr.dev/project/specification): Full product contract for command surface, validation, ranking, output, and error semantics.

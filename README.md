@@ -159,6 +159,8 @@ for a GitHub Enterprise host, gitquarry derives the env var name from the normal
 | --- | --- |
 | `gitquarry search` | search public repositories with native mode by default and explicit discover mode when requested |
 | `gitquarry inspect` | inspect one explicit `owner/repo` with optional README inclusion |
+| `gitquarry tree` | print a repository file tree from GitHub without cloning |
+| `gitquarry code` | search repository file contents from GitHub without cloning |
 | `gitquarry source` | fetch or locate source code through `opensrc` when explicitly requested |
 | `gitquarry auth` | save, inspect, and remove host-scoped personal access tokens |
 | `gitquarry config` | print the effective config path or effective config payload |
@@ -178,6 +180,8 @@ root commands:
 ```bash
 gitquarry search [OPTIONS] [QUERY]
 gitquarry inspect [OPTIONS] <OWNER/REPO>
+gitquarry tree [OPTIONS] <OWNER/REPO>
+gitquarry code [OPTIONS] <OWNER/REPO> <PATTERN>
 gitquarry source path [OPTIONS] <SPEC>
 gitquarry auth login|status|logout
 gitquarry config path|show
@@ -200,6 +204,22 @@ inspect-specific controls stay intentionally narrow:
 - `--readme`
 - `--format pretty|json|compact|csv`
 - `--progress auto|on|off`
+
+tree-specific controls inspect remote repository paths without cloning:
+
+- `--reference <REF>`
+- `--path <GLOB>` for `*` and `?` path matching
+- `--contains <TEXT>`
+- `--depth <N>`
+
+code-specific controls search remote file contents without cloning:
+
+- `--reference <REF>`
+- `--path <GLOB>` for candidate file filtering
+- `--mode literal|regex`
+- `--context <N>`
+- `--limit <N>`
+- `--max-file-bytes <BYTES>`
 
 source-specific controls are explicit and delegated to `opensrc`:
 
@@ -301,6 +321,18 @@ gitquarry source path rust-lang/rust
 rg "fn main" "$(gitquarry source path rust-lang/rust)"
 ```
 
+inspect a repository tree without cloning:
+
+```bash
+gitquarry tree rust-lang/rust --path "src/*.rs" --depth 2
+```
+
+search remote code without cloning:
+
+```bash
+gitquarry code rust-lang/rust "fn main" --path "src/*.rs" --context 2
+```
+
 pipe structured output without polluting stdout with progress:
 
 ```bash
@@ -357,6 +389,9 @@ Usage: gitquarry [OPTIONS] [COMMAND]
 Commands:
   search   Search public repositories
   inspect  Inspect one explicit owner/repo
+  tree     Print a repository file tree without cloning it
+  code     Search repository code without cloning it
+  source   Fetch or locate source code through opensrc
   auth     Manage host-scoped personal access tokens
   config   Show config path or the effective config payload
   version  Print the current gitquarry version
@@ -416,6 +451,8 @@ for the fuller install matrix and release operations, use the [installation guid
 - [discovery mode guide](./docs/guides/discovery-mode.mdx)
 - [search command reference](./docs/commands/search.mdx)
 - [inspect command reference](./docs/commands/inspect.mdx)
+- [tree command reference](./docs/commands/tree.mdx)
+- [code command reference](./docs/commands/code.mdx)
 - [source command reference](./docs/commands/source.mdx)
 - [auth command reference](./docs/commands/auth.mdx)
 - [config command reference](./docs/commands/config.mdx)

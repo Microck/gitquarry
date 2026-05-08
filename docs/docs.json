@@ -94,6 +94,8 @@
             "pages": [
               "commands/search",
               "commands/inspect",
+              "commands/tree",
+              "commands/code",
               "commands/source",
               "commands/auth",
               "commands/config"

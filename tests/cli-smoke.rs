@@ -109,8 +109,29 @@ fn serve(server: Server, stop_rx: Receiver<()>, request_count: Arc<AtomicUsize>)
                           "archived": false,
                           "is_template": false,
                           "fork": false,
+                          "default_branch": "main",
                           "open_issues_count": 4,
                           "owner": { "login": "example" }
+                        }"#,
+                    ),
+                    "/api/v3/repos/example/rocket/git/trees/main?recursive=1" => json_response(
+                        200,
+                        r#"{
+                          "truncated": false,
+                          "tree": [
+                            { "path": "README.md", "type": "blob", "size": 12 },
+                            { "path": "src", "type": "tree" },
+                            { "path": "src/lib.rs", "type": "blob", "size": 78 },
+                            { "path": "tests", "type": "tree" },
+                            { "path": "tests/cli.rs", "type": "blob", "size": 21 }
+                          ]
+                        }"#,
+                    ),
+                    "/api/v3/repos/example/rocket/contents/src/lib.rs?ref=main" => json_response(
+                        200,
+                        r#"{
+                          "encoding": "base64",
+                          "content": "cHViIGZuIHJ1bigpIHsKICAgIGxldCBjb21tYW5kID0gImdpdHF1YXJyeSI7CiAgICBwcmludGxuISgie2NvbW1hbmR9Iik7Cn0K"
                         }"#,
                     ),
                     "/api/v3/repos/example/rocket/contributors?per_page=1&anon=1" => {
@@ -398,6 +419,72 @@ fn inspect_json_returns_metadata_and_readme() {
         payload["repository"]["latest_release"]["tag_name"],
         "v1.2.3"
     );
+}
+
+#[test]
+fn tree_json_filters_by_glob_and_depth() {
+    let temp = TempDir::new().unwrap();
+    let (host, stop_tx, _) = start_fixture_server();
+
+    let output = base_command(&temp, &host)
+        .args([
+            "tree",
+            "example/rocket",
+            "--path",
+            "src/*",
+            "--depth",
+            "2",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    stop_tx.send(()).ok();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let payload: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(payload["reference"], "main");
+    assert_eq!(payload["items"].as_array().unwrap().len(), 1);
+    assert_eq!(payload["items"][0]["path"], "src/lib.rs");
+}
+
+#[test]
+fn code_json_searches_remote_file_content_with_context() {
+    let temp = TempDir::new().unwrap();
+    let (host, stop_tx, _) = start_fixture_server();
+
+    let output = base_command(&temp, &host)
+        .args([
+            "code",
+            "example/rocket",
+            "gitquarry",
+            "--path",
+            "src/*.rs",
+            "--context",
+            "1",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    stop_tx.send(()).ok();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let payload: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(payload["searched_files"], 1);
+    assert_eq!(payload["items"][0]["path"], "src/lib.rs");
+    assert_eq!(payload["items"][0]["line"], 2);
+    assert_eq!(payload["items"][0]["lines"].as_array().unwrap().len(), 3);
 }
 
 #[test]

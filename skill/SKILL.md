@@ -1,6 +1,6 @@
 ---
 name: gitquarry-operator
-description: Operate gitquarry correctly for GitHub repository search, inspection, authentication, host selection, and script-safe output. Use when running gitquarry commands, choosing between native and discover search, selecting rank, depth, README, explain, format, progress, host, or config options, troubleshooting auth or flag conflicts, or producing operator-ready gitquarry command lines.
+description: Operate gitquarry correctly for GitHub repository search, inspection, remote tree/code lookup, authentication, host selection, and script-safe output. Use when running gitquarry commands, choosing between native and discover search, selecting rank, depth, README, explain, tree/code path filters, format, progress, host, or config options, troubleshooting auth or flag conflicts, or producing operator-ready gitquarry command lines.
 ---
 
 # Gitquarry Operator
@@ -9,7 +9,7 @@ Use this skill to drive `gitquarry` as a tool, not just to pick one benchmarked 
 
 ## Workflow
 
-1. Classify the task as `auth`, `search`, `inspect`, `config`, or scripting.
+1. Classify the task as `auth`, `search`, `inspect`, `tree`, `code`, `config`, or scripting.
 2. Verify the effective host before assuming credentials or config state.
 3. Start with the narrowest command that solves the task.
 4. Prefer native `search` first. Turn on discover mode only when the request actually needs broader coverage, reranking, README evidence, or explain output.
@@ -22,7 +22,17 @@ Use this skill to drive `gitquarry` as a tool, not just to pick one benchmarked 
 - Use `gitquarry auth login|status|logout` for credential work.
 - Use `gitquarry search` for repository discovery and ranking.
 - Use `gitquarry inspect <owner/repo>` when the target repository is already known.
+- Use `gitquarry tree <owner/repo>` when the task needs repository paths without cloning.
+- Use `gitquarry code <owner/repo> <pattern>` when the task needs remote code search without cloning.
 - Use `gitquarry config path|show` when the task is about effective config state.
+
+## Tree And Code Rules
+
+- Prefer `tree` over `source path` when path inspection is enough and no local checkout is needed.
+- Prefer `code` over `source path` for bounded literal or regex code search inside one known repository.
+- Add `--path` filters, `--depth`, `--limit`, or `--max-file-bytes` when a broad remote scan could be noisy or API-heavy.
+- Use `--reference` when a branch, tag, or commit matters.
+- Use `--mode regex` only when regex semantics are required; literal search is the default.
 
 ## Search Rules
 
@@ -54,6 +64,7 @@ Use this skill to drive `gitquarry` as a tool, not just to pick one benchmarked 
 - If a discover-only flag is used without `--mode discover`, fix the command instead of guessing around the error.
 - If a raw query qualifier conflicts with a structured flag, remove one side of the conflict.
 - If `inspect` input is not `owner/repo`, correct the repository shape before auth debugging.
+- If `tree` or `code` is too broad, narrow with `--path`, `--depth`, or `--limit` before escalating to `source path`.
 - If auth fails, verify token, host, and resolution order before changing search flags.
 
 ## References
@@ -63,6 +74,8 @@ Read these only when needed:
 - `references/benchmark-operator-playbook.md` for the full operator playbook, command patterns, host/auth/scripting rules, and benchmark-backed discover heuristics.
 - `../docs/commands/search.mdx` when exact search flag behavior matters.
 - `../docs/commands/inspect.mdx` when the task is repository inspection rather than search.
+- `../docs/commands/tree.mdx` when the task is remote repository tree inspection.
+- `../docs/commands/code.mdx` when the task is no-clone code search.
 - `../docs/guides/output-and-scripting.mdx` when the task is CI, pipeline, or agent-safe usage.
 - `../docs/guides/github-enterprise-hosts.mdx` when the task involves non-default hosts.
 

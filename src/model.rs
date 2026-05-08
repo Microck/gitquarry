@@ -98,6 +98,14 @@ pub enum ForkMode {
     Only,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ValueEnum, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum SearchPatternMode {
+    #[default]
+    Literal,
+    Regex,
+}
+
 impl ForkMode {
     pub fn qualifier(self) -> &'static str {
         match self {
@@ -186,6 +194,57 @@ pub struct SearchOutput {
 pub struct InspectOutput {
     pub host: String,
     pub repository: Repository,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TreeEntryKind {
+    Blob,
+    Tree,
+    Commit,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreeEntry {
+    pub path: String,
+    pub kind: TreeEntryKind,
+    pub size: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreeOutput {
+    pub host: String,
+    pub repository: String,
+    pub reference: String,
+    pub truncated: bool,
+    pub total_count: usize,
+    pub items: Vec<TreeEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeMatchLine {
+    pub line: usize,
+    pub text: String,
+    pub matched: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeMatch {
+    pub path: String,
+    pub line: usize,
+    pub lines: Vec<CodeMatchLine>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeSearchOutput {
+    pub host: String,
+    pub repository: String,
+    pub reference: String,
+    pub pattern: String,
+    pub mode: SearchPatternMode,
+    pub searched_files: usize,
+    pub skipped_files: usize,
+    pub total_count: usize,
+    pub items: Vec<CodeMatch>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
