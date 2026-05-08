@@ -1,6 +1,6 @@
 use crate::cli::{
-    AuthArgs, AuthCommand, AuthLoginArgs, Cli, Command, ConfigArgs, ConfigCommand, InspectArgs,
-    SearchArgs, SourceArgs, SourceCommand,
+    AuthArgs, AuthCommand, AuthLoginArgs, Cli, CodeArgs, Command, ConfigArgs, ConfigCommand,
+    InspectArgs, SearchArgs, SourceArgs, SourceCommand, TreeArgs,
 };
 use crate::config::ConfigBundle;
 use crate::credential::{
@@ -10,10 +10,13 @@ use crate::error::{AppError, AppResult};
 use crate::github::GitHubClient;
 use crate::host::{HostContext, normalize_host};
 use crate::model::{
-    ColorPreference, CredentialSource, InspectOutput, OutputFormat, ProgressMode, RankMode,
-    Repository, RetrievalMode, SearchOutput, SearchSort,
+    CodeMatch, CodeMatchLine, CodeSearchOutput, ColorPreference, CredentialSource, InspectOutput,
+    OutputFormat, ProgressMode, RankMode, Repository, RetrievalMode, SearchOutput,
+    SearchPatternMode, SearchSort, TreeEntry, TreeEntryKind, TreeOutput,
 };
-use crate::output::{progress, write_inspect, write_line, write_search};
+use crate::output::{
+    progress, write_code_search, write_inspect, write_line, write_search, write_tree,
+};
 use crate::query::{
     apply_post_filters, build_search_plan, compiled_query_has_qualifier, discovery_target,
 };
@@ -22,6 +25,7 @@ use chrono::{Duration, Utc};
 use clap::{CommandFactory, Parser, error::ErrorKind};
 use clap_complete::generate;
 use rayon::prelude::*;
+use regex::Regex;
 use std::collections::HashMap;
 use std::io::{self, IsTerminal, Read, Write};
 use std::process::exit;
@@ -71,6 +75,8 @@ fn run() -> AppResult<()> {
     match &cli.command {
         Some(Command::Search(args)) => search_command(&cli, &config, args),
         Some(Command::Inspect(args)) => inspect_command(&cli, &config, args),
+        Some(Command::Tree(args)) => tree_command(&cli, &config, args),
+        Some(Command::Code(args)) => code_command(&cli, &config, args),
         Some(Command::Source(args)) => source_command(args),
         Some(Command::Auth(args)) => auth_command(&cli, &config, args),
         Some(Command::Config(args)) => config_command(&config, args),
@@ -236,6 +242,110 @@ fn inspect_command(cli: &Cli, config: &ConfigBundle, args: &InspectArgs) -> AppR
     )
 }
 
+fn tree_command(cli: &Cli, config: &ConfigBundle, args: &TreeArgs) -> AppResult<()> {
+    let host = resolve_host(cli, config)?;
+    let show_progress = progress_enabled(
+        args.progress
+            .unwrap_or(config.data.progress.unwrap_or(ProgressMode::Auto)),
+    );
+    let (owner, repo) = parse_owner_repo(&args.repository)?;
+    let token = resolve_token(&host, config)?;
+    let client = GitHubClient::new(host.api_base.clone(), token.token)?;
+    let reference = resolve_reference(&client, &owner, &repo, args.reference.as_deref())?;
+    progress(
+        show_progress,
+        format!("fetching tree {owner}/{repo}@{reference}"),
+    );
+    let tree = client.repository_tree(&owner, &repo, &reference)?;
+    let items = filter_tree_entries(
+        tree.entries,
+        args.depth,
+        &args.paths,
+        args.contains.as_deref(),
+    )?;
+    let output = TreeOutput {
+        host: host.web_host,
+        repository: args.repository.clone(),
+        reference: tree.reference,
+        truncated: tree.truncated,
+        total_count: items.len(),
+        items,
+    };
+    write_tree(
+        &output,
+        args.format
+            .unwrap_or(config.data.format.unwrap_or(OutputFormat::Pretty)),
+        config.data.color.unwrap_or(ColorPreference::Auto),
+    )
+}
+
+fn code_command(cli: &Cli, config: &ConfigBundle, args: &CodeArgs) -> AppResult<()> {
+    if args.limit == 0 {
+        return Err(AppError::new(
+            "E_FLAG_CONFLICT",
+            "--limit must be greater than 0",
+        ));
+    }
+    let host = resolve_host(cli, config)?;
+    let show_progress = progress_enabled(
+        args.progress
+            .unwrap_or(config.data.progress.unwrap_or(ProgressMode::Auto)),
+    );
+    let (owner, repo) = parse_owner_repo(&args.repository)?;
+    let token = resolve_token(&host, config)?;
+    let client = GitHubClient::new(host.api_base.clone(), token.token)?;
+    let reference = resolve_reference(&client, &owner, &repo, args.reference.as_deref())?;
+    progress(
+        show_progress,
+        format!("fetching tree {owner}/{repo}@{reference}"),
+    );
+    let tree = client.repository_tree(&owner, &repo, &reference)?;
+    let files = candidate_code_files(tree.entries, &args.paths, args.max_file_bytes)?;
+    let matcher = PatternMatcher::new(&args.pattern, args.mode)?;
+    let mut matches = Vec::new();
+    let mut searched_files = 0usize;
+    let mut skipped_files = 0usize;
+
+    for file in files {
+        if matches.len() >= args.limit {
+            break;
+        }
+        progress(show_progress, format!("searching {}", file.path));
+        match client.file_text(&owner, &repo, &file.path, &reference)? {
+            Some(text) => {
+                searched_files += 1;
+                append_code_matches(
+                    &mut matches,
+                    &file.path,
+                    &text,
+                    &matcher,
+                    args.context,
+                    args.limit,
+                );
+            }
+            None => skipped_files += 1,
+        }
+    }
+
+    let output = CodeSearchOutput {
+        host: host.web_host,
+        repository: args.repository.clone(),
+        reference,
+        pattern: args.pattern.clone(),
+        mode: args.mode,
+        searched_files,
+        skipped_files,
+        total_count: matches.len(),
+        items: matches,
+    };
+    write_code_search(
+        &output,
+        args.format
+            .unwrap_or(config.data.format.unwrap_or(OutputFormat::Pretty)),
+        config.data.color.unwrap_or(ColorPreference::Auto),
+    )
+}
+
 fn auth_command(cli: &Cli, config: &ConfigBundle, args: &AuthArgs) -> AppResult<()> {
     let host = resolve_host(cli, config)?;
     match &args.command {
@@ -376,6 +486,141 @@ fn progress_enabled(mode: ProgressMode) -> bool {
         ProgressMode::On => true,
         ProgressMode::Off => false,
         ProgressMode::Auto => io::stderr().is_terminal(),
+    }
+}
+
+fn resolve_reference(
+    client: &GitHubClient,
+    owner: &str,
+    repo: &str,
+    requested: Option<&str>,
+) -> AppResult<String> {
+    if let Some(reference) = requested
+        && !reference.trim().is_empty()
+    {
+        return Ok(reference.trim().to_string());
+    }
+    client.default_branch(owner, repo)
+}
+
+fn filter_tree_entries(
+    entries: Vec<TreeEntry>,
+    depth: Option<usize>,
+    path_patterns: &[String],
+    contains: Option<&str>,
+) -> AppResult<Vec<TreeEntry>> {
+    let matchers = compile_globs(path_patterns)?;
+    Ok(entries
+        .into_iter()
+        .filter(|entry| {
+            depth.is_none_or(|max_depth| path_depth(&entry.path) <= max_depth)
+                && contains.is_none_or(|needle| entry.path.contains(needle))
+                && (matchers.is_empty()
+                    || matchers.iter().any(|matcher| matcher.is_match(&entry.path)))
+        })
+        .collect())
+}
+
+fn candidate_code_files(
+    entries: Vec<TreeEntry>,
+    path_patterns: &[String],
+    max_file_bytes: u64,
+) -> AppResult<Vec<TreeEntry>> {
+    let matchers = compile_globs(path_patterns)?;
+    Ok(entries
+        .into_iter()
+        .filter(|entry| entry.kind == TreeEntryKind::Blob)
+        .filter(|entry| entry.size.is_none_or(|size| size <= max_file_bytes))
+        .filter(|entry| {
+            matchers.is_empty() || matchers.iter().any(|matcher| matcher.is_match(&entry.path))
+        })
+        .collect())
+}
+
+fn path_depth(path: &str) -> usize {
+    path.split('/').filter(|part| !part.is_empty()).count()
+}
+
+fn compile_globs(patterns: &[String]) -> AppResult<Vec<Regex>> {
+    patterns
+        .iter()
+        .map(|pattern| {
+            Regex::new(&glob_to_regex(pattern)).map_err(|err| {
+                AppError::with_detail("E_FLAG_CONFLICT", "invalid path glob", err.to_string())
+            })
+        })
+        .collect()
+}
+
+fn glob_to_regex(pattern: &str) -> String {
+    let mut raw = String::from("^");
+    for ch in pattern.chars() {
+        match ch {
+            '*' => raw.push_str("[^/]*"),
+            '?' => raw.push_str("[^/]"),
+            '.' | '+' | '(' | ')' | '|' | '^' | '$' | '{' | '}' | '[' | ']' | '\\' => {
+                raw.push('\\');
+                raw.push(ch);
+            }
+            _ => raw.push(ch),
+        }
+    }
+    raw.push('$');
+    raw
+}
+
+enum PatternMatcher {
+    Literal(String),
+    Regex(Regex),
+}
+
+impl PatternMatcher {
+    fn new(pattern: &str, mode: SearchPatternMode) -> AppResult<Self> {
+        match mode {
+            SearchPatternMode::Literal => Ok(Self::Literal(pattern.to_string())),
+            SearchPatternMode::Regex => Regex::new(pattern).map(Self::Regex).map_err(|err| {
+                AppError::with_detail("E_FLAG_CONFLICT", "invalid regex pattern", err.to_string())
+            }),
+        }
+    }
+
+    fn is_match(&self, line: &str) -> bool {
+        match self {
+            Self::Literal(pattern) => line.contains(pattern),
+            Self::Regex(pattern) => pattern.is_match(line),
+        }
+    }
+}
+
+fn append_code_matches(
+    matches: &mut Vec<CodeMatch>,
+    path: &str,
+    text: &str,
+    matcher: &PatternMatcher,
+    context: usize,
+    limit: usize,
+) {
+    let lines = text.lines().collect::<Vec<_>>();
+    for (index, line) in lines.iter().enumerate() {
+        if matches.len() >= limit {
+            break;
+        }
+        if !matcher.is_match(line) {
+            continue;
+        }
+        let start = index.saturating_sub(context);
+        let end = (index + context + 1).min(lines.len());
+        matches.push(CodeMatch {
+            path: path.to_string(),
+            line: index + 1,
+            lines: (start..end)
+                .map(|line_index| CodeMatchLine {
+                    line: line_index + 1,
+                    text: lines[line_index].to_string(),
+                    matched: line_index == index,
+                })
+                .collect(),
+        });
     }
 }
 

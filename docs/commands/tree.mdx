@@ -1,0 +1,64 @@
+---
+title: "tree"
+description: "Reference for gitquarry tree, the no-clone repository tree inspection command."
+---
+
+# `gitquarry tree`
+
+Print a repository file tree from GitHub without cloning the repository.
+
+## Synopsis
+
+```bash
+gitquarry tree [OPTIONS] <OWNER/REPO>
+```
+
+## Behavior
+
+`tree` fetches the repository tree through the GitHub API. By default it uses the repository default branch.
+
+The output can be filtered before rendering:
+
+- `--path` accepts simple glob patterns using `*` and `?`
+- `--contains` keeps paths containing a text fragment
+- `--depth` limits displayed path depth, where root entries are depth `1`
+
+## Options
+
+```bash
+--reference <REF>
+--path <GLOB>
+--contains <TEXT>
+--depth <N>
+--format pretty|json|compact|csv
+--progress auto|on|off
+```
+
+`--path` can be repeated. Repeated patterns use OR semantics.
+
+## Examples
+
+Print the full tree:
+
+```bash
+gitquarry tree rust-lang/rust
+```
+
+Show Rust files below `src`:
+
+```bash
+gitquarry tree rust-lang/rust --path "src/*.rs"
+```
+
+Limit visible depth:
+
+```bash
+gitquarry tree rust-lang/rust --depth 2
+```
+
+Use a specific ref and structured output:
+
+```bash
+gitquarry tree rust-lang/rust --reference master --format json
+```
+

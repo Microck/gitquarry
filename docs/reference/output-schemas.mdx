@@ -1,6 +1,6 @@
 ---
 title: "Output Schemas"
-description: "See the exact JSON and CSV output shapes used by gitquarry search and inspect."
+description: "See the exact JSON and CSV output shapes used by gitquarry search, inspect, tree, and code."
 ---
 
 # Output Schemas
@@ -73,6 +73,59 @@ Each item uses the repository schema:
 }
 ```
 
+## Tree JSON Shape
+
+`gitquarry tree --format json` serializes this top-level shape:
+
+```json
+{
+  "host": "github.com",
+  "repository": "Microck/gitquarry",
+  "reference": "main",
+  "truncated": false,
+  "total_count": 3,
+  "items": [
+    {
+      "path": "src/main.rs",
+      "kind": "Blob",
+      "size": 1234
+    }
+  ]
+}
+```
+
+`kind` is one of `Blob`, `Tree`, or `Commit`.
+
+## Code JSON Shape
+
+`gitquarry code --format json` serializes this top-level shape:
+
+```json
+{
+  "host": "github.com",
+  "repository": "Microck/gitquarry",
+  "reference": "main",
+  "pattern": "fn main",
+  "mode": "literal",
+  "searched_files": 1,
+  "skipped_files": 0,
+  "total_count": 1,
+  "items": [
+    {
+      "path": "src/main.rs",
+      "line": 3,
+      "lines": [
+        {
+          "line": 3,
+          "text": "fn main() {",
+          "matched": true
+        }
+      ]
+    }
+  ]
+}
+```
+
 ## Explain Object
 
 When `--explain` is active in enhanced flows, `repository.explain` can include:
@@ -94,7 +147,7 @@ When `--explain` is active in enhanced flows, `repository.explain` can include:
 
 ## CSV Columns
 
-CSV output always writes this header:
+`search` and `inspect` CSV output write this header:
 
 ```text
 full_name,html_url,description,stars,forks,language,topics,license,created_at,updated_at,pushed_at,archived,template,fork,open_issues_count,contributor_count,query_score,activity_score,quality_score,blended_score
@@ -106,6 +159,8 @@ Notes:
 - timestamps are RFC3339 in CSV
 - score columns are `0` when no explain data is present
 - `inspect --format csv` writes one row
+- `tree --format csv` writes `path,type,size`
+- `code --format csv` writes `path,line,text`
 
 ## Pretty Output
 
@@ -130,3 +185,7 @@ Pretty output is for humans, not strict parsing.
 - open issue count
 - latest release when available
 - README block when requested
+
+`tree --format pretty` prints repository/ref metadata and an indented file tree.
+
+`code --format pretty` prints match counts, file paths, line numbers, and requested context lines.

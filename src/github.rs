@@ -1,5 +1,6 @@
 use crate::error::{AppError, AppResult};
-use crate::model::{LicenseInfo, ReleaseSummary, Repository};
+use crate::model::{LicenseInfo, ReleaseSummary, Repository, TreeEntry, TreeEntryKind};
+use base64::Engine;
 use chrono::{DateTime, Utc};
 use reqwest::StatusCode;
 use reqwest::blocking::{Client, Response};
@@ -26,6 +27,13 @@ pub struct SearchPage {
 #[derive(Debug, Clone)]
 pub struct AuthIdentity {
     pub login: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct RepositoryTree {
+    pub reference: String,
+    pub truncated: bool,
+    pub entries: Vec<TreeEntry>,
 }
 
 impl GitHubClient {
@@ -105,6 +113,83 @@ impl GitHubClient {
         })?;
         let payload: RepositoryResponse = parse_json(response)?;
         Ok(payload.into())
+    }
+
+    pub fn default_branch(&self, owner: &str, repo: &str) -> AppResult<String> {
+        let response = self.send_with_retry(|| {
+            self.http
+                .get(format!("{}/repos/{owner}/{repo}", self.api_base))
+        })?;
+        let payload: RepositoryMetadataResponse = parse_json(response)?;
+        Ok(payload.default_branch)
+    }
+
+    pub fn repository_tree(
+        &self,
+        owner: &str,
+        repo: &str,
+        reference: &str,
+    ) -> AppResult<RepositoryTree> {
+        let response = self.send_with_retry(|| {
+            self.http
+                .get(format!(
+                    "{}/repos/{owner}/{repo}/git/trees/{reference}",
+                    self.api_base
+                ))
+                .query(&[("recursive", "1")])
+        })?;
+        let payload: TreeResponse = parse_json(response)?;
+        Ok(RepositoryTree {
+            reference: reference.to_string(),
+            truncated: payload.truncated,
+            entries: payload
+                .tree
+                .into_iter()
+                .filter_map(|entry| TreeEntry::try_from(entry).ok())
+                .collect(),
+        })
+    }
+
+    pub fn file_text(
+        &self,
+        owner: &str,
+        repo: &str,
+        path: &str,
+        reference: &str,
+    ) -> AppResult<Option<String>> {
+        let response = self.send_with_retry(|| {
+            self.http
+                .get(format!(
+                    "{}/repos/{owner}/{repo}/contents/{path}",
+                    self.api_base
+                ))
+                .query(&[("ref", reference)])
+        });
+
+        let response = match response {
+            Ok(response) => response,
+            Err(error) if error.code == "E_NOT_FOUND" => return Ok(None),
+            Err(error) => return Err(error),
+        };
+
+        let payload: ContentResponse = parse_json(response)?;
+        let Some(content) = payload.content else {
+            return Ok(None);
+        };
+        if payload.encoding.as_deref() != Some("base64") {
+            return Ok(None);
+        }
+
+        let compact = content.lines().collect::<String>();
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(compact)
+            .map_err(|err| {
+                AppError::with_detail("E_HTTP", "failed to decode file content", err.to_string())
+            })?;
+        match String::from_utf8(bytes) {
+            Ok(text) => Ok(Some(text)),
+            Err(_) => Ok(None),
+        }
     }
 
     pub fn readme(&self, owner: &str, repo: &str) -> AppResult<Option<String>> {
@@ -328,6 +413,51 @@ struct AuthUser {
 struct SearchResponse {
     total_count: usize,
     items: Vec<RepositoryResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepositoryMetadataResponse {
+    default_branch: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TreeResponse {
+    #[serde(default)]
+    tree: Vec<TreeEntryResponse>,
+    #[serde(default)]
+    truncated: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct TreeEntryResponse {
+    path: String,
+    #[serde(rename = "type")]
+    kind: String,
+    size: Option<u64>,
+}
+
+impl TryFrom<TreeEntryResponse> for TreeEntry {
+    type Error = ();
+
+    fn try_from(value: TreeEntryResponse) -> Result<Self, Self::Error> {
+        let kind = match value.kind.as_str() {
+            "blob" => TreeEntryKind::Blob,
+            "tree" => TreeEntryKind::Tree,
+            "commit" => TreeEntryKind::Commit,
+            _ => return Err(()),
+        };
+        Ok(Self {
+            path: value.path,
+            kind,
+            size: value.size,
+        })
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ContentResponse {
+    encoding: Option<String>,
+    content: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

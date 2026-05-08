@@ -1,0 +1,56 @@
+---
+title: "code"
+description: "Reference for gitquarry code, the no-clone repository code search command."
+---
+
+# `gitquarry code`
+
+Search repository file contents from GitHub without cloning the repository.
+
+## Synopsis
+
+```bash
+gitquarry code [OPTIONS] <OWNER/REPO> <PATTERN>
+```
+
+## Behavior
+
+`code` first fetches the repository tree, filters candidate blobs, then fetches matching file contents through the GitHub API.
+
+Use `--path`, `--limit`, and `--max-file-bytes` to keep broad searches bounded. Files that cannot be decoded as UTF-8 text are skipped.
+
+## Options
+
+```bash
+--reference <REF>
+--path <GLOB>
+--mode literal|regex
+--context <N>
+--limit <N>
+--max-file-bytes <BYTES>
+--format pretty|json|compact|csv
+--progress auto|on|off
+```
+
+`--path` can be repeated. Repeated patterns use OR semantics.
+
+## Examples
+
+Search for literal text:
+
+```bash
+gitquarry code rust-lang/rust "fn main" --path "src/*.rs"
+```
+
+Search with a regex and context:
+
+```bash
+gitquarry code rust-lang/rust "pub fn [a-z_]+" --mode regex --context 2
+```
+
+Use structured output for automation:
+
+```bash
+gitquarry code rust-lang/rust "HashMap" --path "compiler/*.rs" --format json
+```
+

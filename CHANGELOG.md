@@ -6,6 +6,12 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+## [0.1.7]
+
+- Add `gitquarry tree` for no-clone repository tree inspection with path glob, text, depth, ref, and structured output controls
+- Add `gitquarry code` for no-clone repository code search with literal or regex matching, path filters, context lines, limits, and structured output
+- Document tree and code commands for CLI, MCP, and agent workflows
+
 ## [0.1.6]
 
 - Keep GitHub release publishing green when npm registry permissions reject wrapper publish

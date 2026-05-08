@@ -1,6 +1,6 @@
 use crate::model::{
     BoolFlag, DiscoveryDepth, ForkMode, OutputFormat, ProgressMode, RankMode, RetrievalMode,
-    SearchSort,
+    SearchPatternMode, SearchSort,
 };
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
@@ -51,6 +51,10 @@ pub enum Command {
     Search(Box<SearchArgs>),
     /// Inspect one explicit owner/repo.
     Inspect(InspectArgs),
+    /// Print a repository file tree without cloning it.
+    Tree(TreeArgs),
+    /// Search repository code without cloning it.
+    Code(CodeArgs),
     /// Fetch or locate source code through opensrc.
     Source(SourceArgs),
     /// Manage host-scoped personal access tokens.
@@ -219,6 +223,77 @@ pub struct InspectArgs {
     /// Include the repository README in the output.
     #[arg(long, default_value_t = false)]
     pub readme: bool,
+
+    /// Output format.
+    #[arg(long, value_enum)]
+    pub format: Option<OutputFormat>,
+
+    /// Progress output mode for stderr.
+    #[arg(long, value_enum)]
+    pub progress: Option<ProgressMode>,
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct TreeArgs {
+    /// Explicit repository identifier in owner/repo form.
+    pub repository: String,
+
+    /// Git ref to inspect. Defaults to the repository default branch.
+    #[arg(long)]
+    pub reference: Option<String>,
+
+    /// Only show paths matching this glob pattern. Repeat for OR semantics.
+    #[arg(long = "path")]
+    pub paths: Vec<String>,
+
+    /// Only show paths containing this text.
+    #[arg(long)]
+    pub contains: Option<String>,
+
+    /// Maximum path depth to print, where root entries are depth 1.
+    #[arg(long)]
+    pub depth: Option<usize>,
+
+    /// Output format.
+    #[arg(long, value_enum)]
+    pub format: Option<OutputFormat>,
+
+    /// Progress output mode for stderr.
+    #[arg(long, value_enum)]
+    pub progress: Option<ProgressMode>,
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct CodeArgs {
+    /// Explicit repository identifier in owner/repo form.
+    pub repository: String,
+
+    /// Text or regex pattern to search for.
+    pub pattern: String,
+
+    /// Git ref to inspect. Defaults to the repository default branch.
+    #[arg(long)]
+    pub reference: Option<String>,
+
+    /// Restrict searched files to this glob pattern. Repeat for OR semantics.
+    #[arg(long = "path")]
+    pub paths: Vec<String>,
+
+    /// Treat the pattern as literal text or a Rust regex.
+    #[arg(long, value_enum, default_value_t = SearchPatternMode::Literal)]
+    pub mode: SearchPatternMode,
+
+    /// Lines of context to include before and after each match.
+    #[arg(long, default_value_t = 0)]
+    pub context: usize,
+
+    /// Maximum number of matches to print.
+    #[arg(long, default_value_t = 100)]
+    pub limit: usize,
+
+    /// Maximum file size to fetch in bytes.
+    #[arg(long, default_value_t = 1_000_000)]
+    pub max_file_bytes: u64,
 
     /// Output format.
     #[arg(long, value_enum)]
