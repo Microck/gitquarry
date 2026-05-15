@@ -28,7 +28,7 @@ if you already use GitHub repository search and want a CLI that stays honest abo
 - native search stays native by default, including GitHub-style ordering and query semantics
 - discover mode is explicit, so broader candidate collection and reranking only happen when you opt in
 - README enrichment is off unless you request it
-- output modes are practical for both humans and scripts: `pretty`, `json`, `compact`, and `csv`
+- output modes are practical for both humans and scripts: `pretty`, `json`, `toon`, `compact`, and `csv`
 - auth handling is host-aware and works with secure storage, env overrides, or an explicit insecure fallback
 - failure modes are intended to be clear, narrow, and script-friendly
 
@@ -172,8 +172,11 @@ supported formats:
 
 - `pretty`
 - `json`
+- `toon`
 - `compact`
 - `csv`
+
+`toon` serializes the same structured payload as JSON using Token-Oriented Object Notation, which is useful when passing repository result sets into LLM context.
 
 root commands:
 
@@ -202,7 +205,7 @@ search-specific controls include:
 inspect-specific controls stay intentionally narrow:
 
 - `--readme`
-- `--format pretty|json|compact|csv`
+- `--format pretty|json|toon|compact|csv`
 - `--progress auto|on|off`
 
 tree-specific controls inspect remote repository paths without cloning:

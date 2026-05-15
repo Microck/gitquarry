@@ -918,6 +918,24 @@ fn compact_output_is_minified_json() {
 }
 
 #[test]
+fn toon_output_contains_tabular_repository_rows() {
+    let temp = TempDir::new().unwrap();
+    let (host, stop_tx, _) = start_fixture_server();
+
+    let output = base_command(&temp, &host)
+        .args(["search", "rust cli", "--format", "toon"])
+        .output()
+        .unwrap();
+
+    stop_tx.send(()).ok();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("items"));
+    assert!(stdout.contains("example/rocket"));
+}
+
+#[test]
 fn csv_output_contains_header_and_repository_row() {
     let temp = TempDir::new().unwrap();
     let (host, stop_tx, _) = start_fixture_server();

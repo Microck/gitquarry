@@ -18,6 +18,7 @@ Supported formats:
 
 - `pretty`
 - `json`
+- `toon`
 - `compact`
 - `csv`
 
@@ -38,6 +39,15 @@ Pretty-printed structured output for tools and scripts:
 ```bash
 gitquarry search --format json "rust cli"
 gitquarry inspect rust-lang/rust --format json
+```
+
+### `toon`
+
+Token-efficient structured output for LLM context:
+
+```bash
+gitquarry search --format toon "rust cli"
+gitquarry inspect rust-lang/rust --format toon
 ```
 
 ### `compact`

@@ -8,6 +8,7 @@ pub enum OutputFormat {
     #[default]
     Pretty,
     Json,
+    Toon,
     Compact,
     Csv,
 }

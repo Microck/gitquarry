@@ -18,6 +18,7 @@ pub fn write_search(
     match format {
         OutputFormat::Pretty => print_pretty_search(output, color),
         OutputFormat::Json => print_json(output, true),
+        OutputFormat::Toon => print_toon(output),
         OutputFormat::Compact => print_json(output, false),
         OutputFormat::Csv => print_csv(&output.items),
     }
@@ -31,6 +32,7 @@ pub fn write_inspect(
     match format {
         OutputFormat::Pretty => print_pretty_inspect(output, color),
         OutputFormat::Json => print_json(output, true),
+        OutputFormat::Toon => print_toon(output),
         OutputFormat::Compact => print_json(output, false),
         OutputFormat::Csv => print_csv(std::slice::from_ref(&output.repository)),
     }
@@ -44,6 +46,7 @@ pub fn write_tree(
     match format {
         OutputFormat::Pretty => print_pretty_tree(output, color),
         OutputFormat::Json => print_json(output, true),
+        OutputFormat::Toon => print_toon(output),
         OutputFormat::Compact => print_json(output, false),
         OutputFormat::Csv => print_tree_csv(output),
     }
@@ -57,6 +60,7 @@ pub fn write_code_search(
     match format {
         OutputFormat::Pretty => print_pretty_code_search(output, color),
         OutputFormat::Json => print_json(output, true),
+        OutputFormat::Toon => print_toon(output),
         OutputFormat::Compact => print_json(output, false),
         OutputFormat::Csv => print_code_csv(output),
     }
@@ -415,6 +419,17 @@ fn print_json<T: serde::Serialize>(value: &T, pretty: bool) -> AppResult<()> {
         AppError::with_detail("E_OUTPUT", "failed to serialize output", err.to_string())
     })?;
     write_line(&raw)
+}
+
+fn print_toon<T: serde::Serialize>(value: &T) -> AppResult<()> {
+    let value = serde_json::to_value(value).map_err(|err| {
+        AppError::with_detail(
+            "E_OUTPUT",
+            "failed to serialize TOON output",
+            err.to_string(),
+        )
+    })?;
+    write_line(&toon::encode(&value, None))
 }
 
 fn print_csv(repos: &[Repository]) -> AppResult<()> {
