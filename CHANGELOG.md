@@ -6,6 +6,12 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+## [0.1.8]
+
+- Add `--format toon` for compact structured CLI output across search, inspect, tree, and code commands
+- Document TOON in command docs, the output/scripting guide, output contracts, config reference, and project specification
+- Keep CI from restoring cached Cargo binaries on macOS runners, avoiding stale `cargo` shims from restored caches
+
 ## [0.1.7]
 
 - Add `gitquarry tree` for no-clone repository tree inspection with path glob, text, depth, ref, and structured output controls
