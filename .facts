@@ -1,0 +1,18 @@
+# project
+
+- label: project compiles successfully
+  command: cargo check
+- label: all tests pass
+  command: cargo test --quiet
+- label: code is formatted
+  command: cargo fmt --check
+
+# cli
+
+## agent-skills
+- label: gitquarry root help points AI agents to gitquarry skills get gitquarry before relying on flag docs alone
+  command: cargo run --quiet -- --help | grep -q "gitquarry skills get gitquarry"
+  tags: [spec, implemented]
+- label: gitquarry exposes an auth-free skills command group that lists, loads, and locates embedded version-matched skills
+  command: cargo run --quiet -- skills list | grep -q "gitquarry" && cargo run --quiet -- skills get gitquarry | grep -q "Gitquarry Operator" && cargo run --quiet -- skills path gitquarry | grep -q "embedded://skills/gitquarry"
+  tags: [spec, implemented]

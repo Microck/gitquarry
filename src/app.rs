@@ -1,6 +1,6 @@
 use crate::cli::{
     AuthArgs, AuthCommand, AuthLoginArgs, Cli, CodeArgs, Command, ConfigArgs, ConfigCommand,
-    InspectArgs, SearchArgs, SourceArgs, SourceCommand, TreeArgs,
+    InspectArgs, SearchArgs, SkillsArgs, SkillsCommand, SourceArgs, SourceCommand, TreeArgs,
 };
 use crate::config::ConfigBundle;
 use crate::credential::{
@@ -71,24 +71,83 @@ fn run() -> AppResult<()> {
         return Ok(());
     }
 
-    let config = ConfigBundle::load()?;
     match &cli.command {
-        Some(Command::Search(args)) => search_command(&cli, &config, args),
-        Some(Command::Inspect(args)) => inspect_command(&cli, &config, args),
-        Some(Command::Tree(args)) => tree_command(&cli, &config, args),
-        Some(Command::Code(args)) => code_command(&cli, &config, args),
-        Some(Command::Source(args)) => source_command(args),
-        Some(Command::Auth(args)) => auth_command(&cli, &config, args),
-        Some(Command::Config(args)) => config_command(&config, args),
-        Some(Command::Version) => write_line(&format!("gitquarry {}", env!("CARGO_PKG_VERSION"))),
-        None => {
-            let mut command = Cli::command();
-            command.print_help().map_err(|err| {
-                AppError::with_detail("E_OUTPUT", "failed to render help", err.to_string())
+        Some(Command::Agent) => {
+            let content =
+                crate::agent::skill_content(crate::agent::GITQUARRY_SKILL).ok_or_else(|| {
+                    AppError::new("E_SKILL_UNKNOWN", "embedded gitquarry skill is unavailable")
+                })?;
+            write_line(&content)
+        }
+        Some(Command::Skills(args)) => skills_command(args),
+        _ => {
+            let config = ConfigBundle::load()?;
+            match &cli.command {
+                Some(Command::Search(args)) => search_command(&cli, &config, args),
+                Some(Command::Inspect(args)) => inspect_command(&cli, &config, args),
+                Some(Command::Tree(args)) => tree_command(&cli, &config, args),
+                Some(Command::Code(args)) => code_command(&cli, &config, args),
+                Some(Command::Source(args)) => source_command(args),
+                Some(Command::Auth(args)) => auth_command(&cli, &config, args),
+                Some(Command::Config(args)) => config_command(&config, args),
+                Some(Command::Version) => {
+                    write_line(&format!("gitquarry {}", env!("CARGO_PKG_VERSION")))
+                }
+                Some(Command::Agent | Command::Skills(_)) => unreachable!(),
+                None => {
+                    let mut command = Cli::command();
+                    command.print_help().map_err(|err| {
+                        AppError::with_detail("E_OUTPUT", "failed to render help", err.to_string())
+                    })?;
+                    io::stdout().write_all(b"\n").map_err(|err| {
+                        AppError::with_detail(
+                            "E_OUTPUT",
+                            "failed to write help newline",
+                            err.to_string(),
+                        )
+                    })
+                }
+            }
+        }
+    }
+}
+
+fn skills_command(args: &SkillsArgs) -> AppResult<()> {
+    match args.command.as_ref().unwrap_or(&SkillsCommand::List) {
+        SkillsCommand::List => {
+            for skill in crate::agent::skills() {
+                write_line(&format!("  {:<20} {}", skill.name, skill.description))?;
+            }
+            Ok(())
+        }
+        SkillsCommand::Get(args) => {
+            let content = if args.full {
+                crate::agent::skill_full_content(&args.name)
+            } else {
+                crate::agent::skill_content(&args.name)
+            }
+            .ok_or_else(|| {
+                AppError::new(
+                    "E_SKILL_UNKNOWN",
+                    format!(
+                        "unknown skill `{}`; run `gitquarry skills list` to see available skills",
+                        args.name
+                    ),
+                )
             })?;
-            io::stdout().write_all(b"\n").map_err(|err| {
-                AppError::with_detail("E_OUTPUT", "failed to write help newline", err.to_string())
-            })
+            write_line(&content)
+        }
+        SkillsCommand::Path(args) => {
+            let locator = crate::agent::skill_locator(args.name.as_deref()).ok_or_else(|| {
+                AppError::new(
+                    "E_SKILL_UNKNOWN",
+                    format!(
+                        "unknown skill `{}`; run `gitquarry skills list` to see available skills",
+                        args.name.as_deref().unwrap_or_default()
+                    ),
+                )
+            })?;
+            write_line(&locator)
         }
     }
 }

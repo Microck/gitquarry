@@ -882,6 +882,62 @@ fn version_subcommand_prints_the_package_version() {
 }
 
 #[test]
+fn help_points_agents_to_embedded_skill() {
+    let temp = TempDir::new().unwrap();
+
+    let output = local_command(&temp).arg("--help").output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("Agent usage:"));
+    assert!(stdout.contains("gitquarry skills get gitquarry"));
+    assert!(stdout.contains("skills [list]"));
+}
+
+#[test]
+fn agent_command_prints_embedded_skill_without_auth() {
+    let temp = TempDir::new().unwrap();
+
+    let output = local_command(&temp).arg("agent").output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("# Gitquarry Operator"));
+    assert!(stdout.contains("gitquarry search"));
+}
+
+#[test]
+fn skills_commands_are_auth_free() {
+    let temp = TempDir::new().unwrap();
+
+    let list = local_command(&temp)
+        .args(["skills", "list"])
+        .output()
+        .unwrap();
+    assert!(list.status.success());
+    let stdout = String::from_utf8(list.stdout).unwrap();
+    assert!(stdout.contains("gitquarry"));
+    assert!(stdout.contains("Core CLI usage guide"));
+
+    let get = local_command(&temp)
+        .args(["skills", "get", "gitquarry"])
+        .output()
+        .unwrap();
+    assert!(get.status.success());
+    let stdout = String::from_utf8(get.stdout).unwrap();
+    assert!(stdout.contains("# Gitquarry Operator"));
+    assert!(stdout.contains("## Workflow"));
+
+    let path = local_command(&temp)
+        .args(["skills", "path", "gitquarry"])
+        .output()
+        .unwrap();
+    assert!(path.status.success());
+    let stdout = String::from_utf8(path.stdout).unwrap();
+    assert_eq!(stdout.trim(), "embedded://skills/gitquarry");
+}
+
+#[test]
 fn completion_generation_matches_the_documented_shells() {
     let temp = TempDir::new().unwrap();
     let (host, stop_tx, _) = start_fixture_server();

@@ -24,6 +24,10 @@ The core contract is:
 - `gitquarry search [OPTIONS] [QUERY]`
 - `gitquarry inspect [OPTIONS] <OWNER/REPO>`
 - `gitquarry source path [OPTIONS] <SPEC>`
+- `gitquarry agent`
+- `gitquarry skills [list]`
+- `gitquarry skills get <NAME> [--full]`
+- `gitquarry skills path [NAME]`
 - `gitquarry auth login [OPTIONS]`
 - `gitquarry auth status [OPTIONS]`
 - `gitquarry auth logout [OPTIONS]`
@@ -502,3 +506,4 @@ Errors are never emitted as JSON in v1.
 - support both `version` and root `--version`
 - include shell completion generation in v1
 - support `bash|zsh|fish|powershell`
+- include embedded, version-matched agent skill guidance through `agent` and `skills`

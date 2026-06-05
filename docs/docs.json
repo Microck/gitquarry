@@ -97,6 +97,7 @@
               "commands/tree",
               "commands/code",
               "commands/source",
+              "commands/skills",
               "commands/auth",
               "commands/config"
             ]

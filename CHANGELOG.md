@@ -6,6 +6,8 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+- Add `gitquarry agent` and `gitquarry skills` so agents can load embedded, version-matched CLI usage guidance from the installed binary
+
 ## [0.1.8]
 
 - Add `--format toon` for compact structured CLI output across search, inspect, tree, and code commands

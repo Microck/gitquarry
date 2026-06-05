@@ -15,6 +15,10 @@ gitquarry inspect [OPTIONS] <OWNER/REPO>
 gitquarry tree [OPTIONS] <OWNER/REPO>
 gitquarry code [OPTIONS] <OWNER/REPO> <PATTERN>
 gitquarry source path [OPTIONS] <SPEC>
+gitquarry agent
+gitquarry skills [list]
+gitquarry skills get <NAME> [--full]
+gitquarry skills path [NAME]
 gitquarry auth login|status|logout
 gitquarry config path|show
 gitquarry version
@@ -61,6 +65,8 @@ Supported values:
 | `tree` | no-clone repository tree inspection |
 | `code` | no-clone repository file content search |
 | `source` | explicit opensrc-backed source retrieval |
+| `agent` | embedded guide for AI agents using the CLI |
+| `skills` | embedded, version-matched CLI usage skills |
 | `auth` | host-scoped PAT management |
 | `config` | inspect effective config path and payload |
 | `version` | print the current version |

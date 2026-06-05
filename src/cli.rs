@@ -30,7 +30,20 @@ impl CompletionShell {
     name = "gitquarry",
     author,
     version,
-    about = "Search public GitHub repositories with explicit discovery controls."
+    about = "Search public GitHub repositories with explicit discovery controls.",
+    long_about = "Search public GitHub repositories with explicit discovery controls.
+
+Agent usage:
+    gitquarry skills get gitquarry
+
+    Skills ship with the CLI and are always version-matched. They include
+    workflow patterns, search mode guidance, auth rules, and copy-paste
+    examples. Prefer this over guessing commands from flag docs alone.
+
+    skills [list]              List available skills
+    skills get gitquarry       Core CLI usage guide
+    skills get <name>          Load a specialized skill
+    skills path [name]         Print the embedded skill locator"
 )]
 pub struct Cli {
     /// GitHub.com hostname or a full custom GitHub host URL.
@@ -49,6 +62,10 @@ pub struct Cli {
 pub enum Command {
     /// Search public repositories.
     Search(Box<SearchArgs>),
+    /// Print the embedded agent skill guide for using gitquarry.
+    Agent,
+    /// List and load embedded agent skills.
+    Skills(SkillsArgs),
     /// Inspect one explicit owner/repo.
     Inspect(InspectArgs),
     /// Print a repository file tree without cloning it.
@@ -63,6 +80,40 @@ pub enum Command {
     Config(ConfigArgs),
     /// Print the current gitquarry version.
     Version,
+}
+
+#[derive(Debug, Args)]
+pub struct SkillsArgs {
+    #[command(subcommand)]
+    pub command: Option<SkillsCommand>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SkillsCommand {
+    /// List available embedded skills.
+    List,
+    /// Print an embedded skill guide.
+    Get(SkillGetArgs),
+    /// Print the embedded skill locator.
+    Path(SkillPathArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct SkillGetArgs {
+    /// Skill name.
+    #[arg(value_name = "NAME")]
+    pub name: String,
+
+    /// Include all embedded reference material for this skill.
+    #[arg(long)]
+    pub full: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct SkillPathArgs {
+    /// Skill name; defaults to gitquarry.
+    #[arg(value_name = "NAME")]
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Args, Clone)]

@@ -1,0 +1,70 @@
+---
+title: "skills"
+description: "Reference for gitquarry skills - embedded, version-matched guidance for agents and automation."
+---
+
+# `gitquarry skills`
+
+Load embedded, version-matched usage guidance for agents and automation.
+
+The top-level help points agents here first:
+
+```bash
+gitquarry skills get gitquarry
+```
+
+Skills ship inside the binary, so the guidance matches the installed command
+surface.
+
+## Synopsis
+
+```bash
+gitquarry skills
+gitquarry skills list
+gitquarry skills get <NAME> [--full]
+gitquarry skills path [NAME]
+gitquarry agent
+```
+
+`gitquarry agent` is a convenience alias for `gitquarry skills get gitquarry`.
+
+## `skills`
+
+List available embedded skills. This is the default when no subcommand is
+provided.
+
+```bash
+gitquarry skills
+gitquarry skills list
+```
+
+## `skills get`
+
+Print an embedded skill guide to stdout.
+
+```bash
+gitquarry skills get gitquarry
+```
+
+The core `gitquarry` skill covers native search, discover mode, repository
+inspection, remote tree/code lookup, auth, host selection, and script-safe
+output.
+
+Use `--full` when future versions bundle extra reference material:
+
+```bash
+gitquarry skills get gitquarry --full
+```
+
+## `skills path`
+
+Print the embedded skill root or a specific skill locator.
+
+```bash
+gitquarry skills path
+gitquarry skills path gitquarry
+```
+
+Because Gitquarry embeds skills into the Rust binary instead of installing a
+filesystem skill directory, this returns `embedded://skills` or
+`embedded://skills/gitquarry`.

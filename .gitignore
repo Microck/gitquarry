@@ -30,3 +30,4 @@ __pycache__/
 /RESEARCH.md
 /SPEC.md
 /ARCHITECTURE.md
+.residue/

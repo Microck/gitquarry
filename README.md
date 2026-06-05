@@ -44,6 +44,16 @@ gitquarry search "rust cli"
 
 if you prefer native binaries over the npm wrapper, use the [GitHub Releases page](https://github.com/Microck/gitquarry/releases) or the Homebrew tap shown below.
 
+### start here for AI agents
+
+```bash
+gitquarry skills get gitquarry
+```
+
+Skills ship with the CLI and are always version-matched. They include workflow
+patterns, search mode guidance, auth rules, and copy-paste examples. Prefer this
+over guessing commands from flag docs alone.
+
 ### Windows
 
 ```powershell
@@ -162,6 +172,8 @@ for a GitHub Enterprise host, gitquarry derives the env var name from the normal
 | `gitquarry tree` | print a repository file tree from GitHub without cloning |
 | `gitquarry code` | search repository file contents from GitHub without cloning |
 | `gitquarry source` | fetch or locate source code through `opensrc` when explicitly requested |
+| `gitquarry agent` | print the embedded agent skill guide for choosing commands and output modes |
+| `gitquarry skills` | list and load embedded, version-matched agent skills |
 | `gitquarry auth` | save, inspect, and remove host-scoped personal access tokens |
 | `gitquarry config` | print the effective config path or effective config payload |
 | `gitquarry version` | print the current gitquarry version |
@@ -186,6 +198,10 @@ gitquarry inspect [OPTIONS] <OWNER/REPO>
 gitquarry tree [OPTIONS] <OWNER/REPO>
 gitquarry code [OPTIONS] <OWNER/REPO> <PATTERN>
 gitquarry source path [OPTIONS] <SPEC>
+gitquarry agent
+gitquarry skills [list]
+gitquarry skills get <NAME> [--full]
+gitquarry skills path [NAME]
 gitquarry auth login|status|logout
 gitquarry config path|show
 gitquarry version

@@ -7,6 +7,16 @@ description: Operate gitquarry correctly for GitHub repository search, inspectio
 
 Use this skill to drive `gitquarry` as a tool, not just to pick one benchmarked search preset.
 
+## Start Here
+
+Load the version-matched copy from the installed CLI before choosing commands:
+
+```bash
+gitquarry skills get gitquarry
+```
+
+Use `gitquarry agent` as a shorthand for the same core guide.
+
 ## Workflow
 
 1. Classify the task as `auth`, `search`, `inspect`, `tree`, `code`, `config`, or scripting.
