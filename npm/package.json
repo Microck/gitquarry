@@ -1,6 +1,6 @@
 {
   "name": "gitquarry",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Node wrapper that installs the native gitquarry CLI binary",
   "license": "MIT",
   "repository": {
