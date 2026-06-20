@@ -6,6 +6,14 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+## [0.1.10]
+
+- Add search planning and probe output for path/code checks before running full discovery
+- Add `gitquarry compare` for side-by-side metadata comparison of explicit repositories
+- Add `gitquarry recipe run` for checked-in TOML search recipes
+- Add `gitquarry mcp` with tools for search, inspect, tree, code, compare, and embedded skill retrieval
+- Move the installed agent skill under `skills/gitquarry/` and include it in packaged crate artifacts
+
 ## [0.1.9]
 
 - Add `gitquarry agent` and `gitquarry skills` so agents can load embedded, version-matched CLI usage guidance from the installed binary
