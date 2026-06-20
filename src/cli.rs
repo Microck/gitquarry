@@ -72,8 +72,14 @@ pub enum Command {
     Tree(TreeArgs),
     /// Search repository code without cloning it.
     Code(CodeArgs),
+    /// Compare explicit repositories side by side.
+    Compare(CompareArgs),
     /// Fetch or locate source code through opensrc.
     Source(SourceArgs),
+    /// Run checked-in search recipes.
+    Recipe(RecipeArgs),
+    /// Run a stdio Model Context Protocol server exposing gitquarry tools.
+    Mcp(McpArgs),
     /// Manage host-scoped personal access tokens.
     Auth(AuthArgs),
     /// Show config path or the effective config payload.
@@ -264,6 +270,38 @@ pub struct SearchArgs {
     /// Progress output mode for stderr.
     #[arg(long, value_enum)]
     pub progress: Option<ProgressMode>,
+
+    /// Print the compiled search plan without calling GitHub.
+    #[arg(long, default_value_t = false)]
+    pub plan: bool,
+
+    /// Probe result repositories for paths matching this glob. Repeat for OR semantics.
+    #[arg(long = "probe-path")]
+    pub probe_paths: Vec<String>,
+
+    /// Probe result repositories for this literal or regex code pattern. Repeat for OR semantics.
+    #[arg(long = "probe-code")]
+    pub probe_code: Vec<String>,
+
+    /// Treat probe code patterns as literal text or Rust regex.
+    #[arg(long, value_enum, default_value_t = SearchPatternMode::Literal)]
+    pub probe_mode: SearchPatternMode,
+
+    /// Lines of context around probe code matches.
+    #[arg(long, default_value_t = 0)]
+    pub probe_context: usize,
+
+    /// Maximum files to fetch per repository while probing code.
+    #[arg(long, default_value_t = 20)]
+    pub probe_limit: usize,
+
+    /// Maximum code matches to record per repository while probing.
+    #[arg(long, default_value_t = 100)]
+    pub probe_match_limit: usize,
+
+    /// Maximum file size to fetch during code probing.
+    #[arg(long, default_value_t = 1_000_000)]
+    pub probe_max_file_bytes: u64,
 }
 
 #[derive(Debug, Args, Clone)]
@@ -355,6 +393,29 @@ pub struct CodeArgs {
     pub progress: Option<ProgressMode>,
 }
 
+#[derive(Debug, Args, Clone)]
+pub struct CompareArgs {
+    /// Explicit repository identifiers in owner/repo form.
+    #[arg(required = true)]
+    pub repositories: Vec<String>,
+
+    /// Include each repository README in the output.
+    #[arg(long, default_value_t = false)]
+    pub readme: bool,
+
+    /// Include a lightweight default-branch tree summary.
+    #[arg(long, default_value_t = false)]
+    pub tree_summary: bool,
+
+    /// Output format.
+    #[arg(long, value_enum)]
+    pub format: Option<OutputFormat>,
+
+    /// Progress output mode for stderr.
+    #[arg(long, value_enum)]
+    pub progress: Option<ProgressMode>,
+}
+
 #[derive(Debug, Args)]
 pub struct SourceArgs {
     #[command(subcommand)]
@@ -365,6 +426,31 @@ pub struct SourceArgs {
 pub enum SourceCommand {
     /// Print the cached source path, fetching on cache miss.
     Path(SourcePathArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct RecipeArgs {
+    #[command(subcommand)]
+    pub command: RecipeCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RecipeCommand {
+    /// Run a TOML search recipe.
+    Run(RecipeRunArgs),
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct RecipeRunArgs {
+    /// TOML recipe file to run.
+    pub file: PathBuf,
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct McpArgs {
+    /// Print one JSON-RPC response per line.
+    #[arg(long)]
+    pub json_lines: bool,
 }
 
 #[derive(Debug, Args, Clone)]

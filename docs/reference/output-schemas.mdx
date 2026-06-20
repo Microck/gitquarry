@@ -1,6 +1,6 @@
 ---
 title: "Output Schemas"
-description: "See the exact JSON and CSV output shapes used by gitquarry search, inspect, tree, and code."
+description: "See the exact JSON and CSV output shapes used by gitquarry commands."
 ---
 
 # Output Schemas
@@ -56,7 +56,78 @@ Each item uses the repository schema:
   "readme": null,
   "latest_release": null,
   "contributor_count": null,
-  "explain": null
+  "explain": null,
+  "probe": null
+}
+```
+
+When probe flags are active, `repository.probe` can include:
+
+```json
+{
+  "reference": "main",
+  "truncated": false,
+  "matched_paths": [
+    {
+      "path": "src/lib.rs",
+      "kind": "Blob",
+      "size": 1234
+    }
+  ],
+  "searched_files": 1,
+  "skipped_files": 0,
+  "total_code_matches": 1,
+  "code_matches": [
+    {
+      "path": "src/lib.rs",
+      "line": 12,
+      "lines": [
+        {
+          "line": 12,
+          "text": "use octocrab::Octocrab;",
+          "matched": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Search Plan JSON Shape
+
+`gitquarry search --plan --format json` serializes this shape and does not call GitHub:
+
+```json
+{
+  "host": "github.com",
+  "plan": {
+    "query": "rust cli",
+    "compiled_query": "rust cli language:rust",
+    "mode": "native",
+    "rank": "native",
+    "sort": "stars",
+    "depth": "balanced",
+    "format": "json",
+    "limit": 10,
+    "readme": false,
+    "explain": false,
+    "weights": {
+      "query": 1.0,
+      "activity": 1.0,
+      "quality": 1.0
+    },
+    "concurrency": 1,
+    "progress": "auto",
+    "post_filters": {
+      "updated_after": null,
+      "updated_before": null
+    },
+    "native_query_present": true
+  },
+  "network": {
+    "will_call_github": false,
+    "estimated_requests_if_run": 1
+  }
 }
 ```
 
@@ -72,6 +143,34 @@ Each item uses the repository schema:
   }
 }
 ```
+
+## Compare JSON Shape
+
+`gitquarry compare --format json` serializes this top-level shape:
+
+```json
+{
+  "host": "github.com",
+  "total_count": 1,
+  "items": [
+    {
+      "repository": {
+        "...": "same repository schema as search items"
+      },
+      "tree_summary": {
+        "reference": "main",
+        "truncated": false,
+        "total_entries": 10,
+        "blobs": 7,
+        "trees": 3,
+        "commits": 0
+      }
+    }
+  ]
+}
+```
+
+`tree_summary` is `null` unless `--tree-summary` is active.
 
 ## Tree JSON Shape
 
@@ -161,6 +260,7 @@ Notes:
 - `inspect --format csv` writes one row
 - `tree --format csv` writes `path,type,size`
 - `code --format csv` writes `path,line,text`
+- `compare --format csv` writes repository columns plus tree summary columns
 
 ## Pretty Output
 

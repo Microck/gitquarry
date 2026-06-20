@@ -507,6 +507,7 @@ impl From<RepositoryResponse> for Repository {
             latest_release: None,
             contributor_count: None,
             explain: None,
+            probe: None,
         }
     }
 }

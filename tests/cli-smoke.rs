@@ -488,6 +488,245 @@ fn code_json_searches_remote_file_content_with_context() {
 }
 
 #[test]
+fn mcp_lists_gitquarry_tools() {
+    let temp = TempDir::new().unwrap();
+    let mut command = local_command(&temp);
+    command
+        .arg("mcp")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().unwrap();
+    {
+        let stdin = child.stdin.as_mut().unwrap();
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize"})
+        )
+        .unwrap();
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/list"})
+        )
+        .unwrap();
+    }
+    drop(child.stdin.take());
+    let output = child.wait_with_output().unwrap();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let responses = stdout
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(responses[0]["result"]["serverInfo"]["name"], "gitquarry");
+    let tools = responses[1]["result"]["tools"].as_array().unwrap();
+    assert!(tools.iter().any(|tool| tool["name"] == "gitquarry_search"));
+    assert!(tools.iter().any(|tool| tool["name"] == "gitquarry_skill"));
+}
+
+#[test]
+fn mcp_search_tool_calls_gitquarry_search() {
+    let temp = TempDir::new().unwrap();
+    let (host, stop_tx, request_count) = start_fixture_server();
+    let mut command = base_command(&temp, &host);
+    command
+        .arg("mcp")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().unwrap();
+    {
+        let stdin = child.stdin.as_mut().unwrap();
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "gitquarry_search",
+                    "arguments": {
+                        "query": "rust cli",
+                        "limit": 1
+                    }
+                }
+            })
+        )
+        .unwrap();
+    }
+    drop(child.stdin.take());
+    let output = child.wait_with_output().unwrap();
+    stop_tx.send(()).ok();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(request_count.load(Ordering::SeqCst), 1);
+    let response: serde_json::Value =
+        serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+    let text = response["result"]["content"][0]["text"].as_str().unwrap();
+    let payload: serde_json::Value = serde_json::from_str(text).unwrap();
+    assert_eq!(payload["items"][0]["full_name"], "example/rocket");
+}
+
+#[test]
+fn search_plan_prints_compiled_query_without_auth_or_network() {
+    let temp = TempDir::new().unwrap();
+    let (host, stop_tx, request_count) = start_fixture_server();
+
+    let output = bare_command(&temp, &host)
+        .args([
+            "search",
+            "release automation",
+            "--language",
+            "rust",
+            "--topic",
+            "cli",
+            "--sort",
+            "stars",
+            "--plan",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    stop_tx.send(()).ok();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(request_count.load(Ordering::SeqCst), 0);
+    let payload: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(payload["plan"]["mode"], "native");
+    assert_eq!(payload["plan"]["rank"], "native");
+    assert_eq!(payload["plan"]["sort"], "stars");
+    assert_eq!(payload["network"]["will_call_github"], false);
+    assert_eq!(
+        payload["plan"]["compiled_query"],
+        "release automation language:rust topic:cli"
+    );
+}
+
+#[test]
+fn search_probe_attaches_path_and_code_evidence() {
+    let temp = TempDir::new().unwrap();
+    let (host, stop_tx, _) = start_fixture_server();
+
+    let output = base_command(&temp, &host)
+        .args([
+            "search",
+            "rust cli",
+            "--probe-path",
+            "src/*.rs",
+            "--probe-code",
+            "gitquarry",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    stop_tx.send(()).ok();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let payload: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let probe = &payload["items"][0]["probe"];
+    assert_eq!(probe["reference"], "main");
+    assert_eq!(probe["matched_paths"][0]["path"], "src/lib.rs");
+    assert_eq!(probe["searched_files"], 1);
+    assert_eq!(probe["total_code_matches"], 1);
+    assert_eq!(probe["code_matches"][0]["path"], "src/lib.rs");
+}
+
+#[test]
+fn compare_json_returns_side_by_side_repository_metadata() {
+    let temp = TempDir::new().unwrap();
+    let (host, stop_tx, _) = start_fixture_server();
+
+    let output = base_command(&temp, &host)
+        .args([
+            "compare",
+            "example/rocket",
+            "--tree-summary",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    stop_tx.send(()).ok();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let payload: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(payload["total_count"], 1);
+    assert_eq!(
+        payload["items"][0]["repository"]["full_name"],
+        "example/rocket"
+    );
+    assert_eq!(
+        payload["items"][0]["repository"]["latest_release"]["tag_name"],
+        "v1.2.3"
+    );
+    assert_eq!(payload["items"][0]["repository"]["contributor_count"], 3);
+    assert_eq!(payload["items"][0]["tree_summary"]["blobs"], 3);
+    assert_eq!(payload["items"][0]["tree_summary"]["trees"], 2);
+}
+
+#[test]
+fn recipe_run_executes_toml_search_recipe() {
+    let temp = TempDir::new().unwrap();
+    let (host, stop_tx, _) = start_fixture_server();
+    let recipe = temp.path().join("rust-cli.toml");
+    fs::write(
+        &recipe,
+        r#"
+query = "rust cli"
+language = ["rust"]
+format = "json"
+progress = "off"
+"#,
+    )
+    .unwrap();
+
+    let output = base_command(&temp, &host)
+        .args(["recipe", "run", &display_path(&recipe)])
+        .output()
+        .unwrap();
+
+    stop_tx.send(()).ok();
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let payload: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(payload["compiled_query"], "rust cli language:rust");
+    assert_eq!(payload["items"][0]["full_name"], "example/rocket");
+}
+
+#[test]
 fn source_path_delegates_to_opensrc_and_prints_path_only() {
     let temp = TempDir::new().unwrap();
     let fake = fake_opensrc(&temp, successful_opensrc_script());

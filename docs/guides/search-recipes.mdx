@@ -81,6 +81,25 @@ gitquarry search "rust cli" --format compact
 gitquarry search "rust cli" --format csv
 ```
 
+## Checked-In TOML Recipes
+
+Use `recipe run` when a search should be reviewed and reused from a repo, docs page, CI job, or runbook.
+
+```toml
+# .gitquarry/recipes/rust-cli.toml
+query = "rust cli"
+language = ["rust"]
+topic = ["cli"]
+sort = "stars"
+limit = 20
+format = "json"
+progress = "off"
+```
+
+```bash
+gitquarry recipe run .gitquarry/recipes/rust-cli.toml
+```
+
 ## Conflict Example To Avoid
 
 This fails because the raw query qualifier overlaps a structured flag:

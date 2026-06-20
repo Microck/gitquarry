@@ -177,6 +177,7 @@ pub struct Repository {
     pub latest_release: Option<ReleaseSummary>,
     pub contributor_count: Option<u64>,
     pub explain: Option<ExplainScore>,
+    pub probe: Option<RepositoryProbe>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,9 +193,43 @@ pub struct SearchOutput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepositoryProbe {
+    pub reference: String,
+    pub truncated: bool,
+    pub matched_paths: Vec<TreeEntry>,
+    pub searched_files: usize,
+    pub skipped_files: usize,
+    pub total_code_matches: usize,
+    pub code_matches: Vec<CodeMatch>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InspectOutput {
     pub host: String,
     pub repository: Repository,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompareOutput {
+    pub host: String,
+    pub total_count: usize,
+    pub items: Vec<CompareItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompareItem {
+    pub repository: Repository,
+    pub tree_summary: Option<TreeSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreeSummary {
+    pub reference: String,
+    pub truncated: bool,
+    pub total_entries: usize,
+    pub blobs: usize,
+    pub trees: usize,
+    pub commits: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

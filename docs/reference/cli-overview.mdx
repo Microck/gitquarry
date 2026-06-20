@@ -14,7 +14,10 @@ gitquarry search [OPTIONS] [QUERY]
 gitquarry inspect [OPTIONS] <OWNER/REPO>
 gitquarry tree [OPTIONS] <OWNER/REPO>
 gitquarry code [OPTIONS] <OWNER/REPO> <PATTERN>
+gitquarry compare [OPTIONS] <OWNER/REPO>...
 gitquarry source path [OPTIONS] <SPEC>
+gitquarry recipe run <FILE>
+gitquarry mcp
 gitquarry agent
 gitquarry skills [list]
 gitquarry skills get <NAME> [--full]
@@ -64,7 +67,10 @@ Supported values:
 | `inspect` | explicit `owner/repo` inspection |
 | `tree` | no-clone repository tree inspection |
 | `code` | no-clone repository file content search |
+| `compare` | side-by-side explicit repository comparison |
 | `source` | explicit opensrc-backed source retrieval |
+| `recipe` | checked-in TOML search recipe execution |
+| `mcp` | stdio Model Context Protocol server for agents |
 | `agent` | embedded guide for AI agents using the CLI |
 | `skills` | embedded, version-matched CLI usage skills |
 | `auth` | host-scoped PAT management |
@@ -78,6 +84,9 @@ The most important root-level rule is:
 - plain `search` stays close to native GitHub repository search
 - enhanced discovery stays explicit
 - remote tree and code inspection do not clone repositories
+- side-by-side comparison only runs for explicit repository inputs
+- checked-in recipes map to visible search flags rather than hidden defaults
+- MCP mode exposes the same CLI workflows to agents over stdio JSON-RPC
 - source fetching stays explicit through `source path`
 
 That contract is defined in [Search Behavior](/reference/search-behavior) and the repo spec.

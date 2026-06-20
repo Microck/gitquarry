@@ -249,6 +249,7 @@ mod tests {
             latest_release: None,
             contributor_count: Some(20),
             explain: None,
+            probe: None,
         }
     }
 

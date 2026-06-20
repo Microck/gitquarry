@@ -1,8 +1,9 @@
 use crate::error::{AppError, AppResult};
 use crate::model::{
-    CodeSearchOutput, ColorPreference, InspectOutput, OutputFormat, Repository, SearchOutput,
-    TreeEntryKind, TreeOutput,
+    CodeSearchOutput, ColorPreference, CompareOutput, InspectOutput, OutputFormat, Repository,
+    SearchOutput, TreeEntryKind, TreeOutput,
 };
+use crate::query::SearchPlanOutput;
 use anstream::eprintln;
 use csv::Writer;
 use std::io::{self, IsTerminal, Write};
@@ -24,6 +25,56 @@ pub fn write_search(
     }
 }
 
+pub fn write_search_plan(output: &SearchPlanOutput, format: OutputFormat) -> AppResult<()> {
+    match format {
+        OutputFormat::Pretty => print_pretty_search_plan(output),
+        OutputFormat::Json => print_json(output, true),
+        OutputFormat::Toon => print_toon(output),
+        OutputFormat::Compact => print_json(output, false),
+        OutputFormat::Csv => {
+            let mut writer = Writer::from_writer(Vec::new());
+            writer
+                .write_record([
+                    "host",
+                    "compiled_query",
+                    "mode",
+                    "rank",
+                    "sort",
+                    "limit",
+                    "will_call_github",
+                    "estimated_requests_if_run",
+                ])
+                .map_err(|err| {
+                    AppError::with_detail("E_OUTPUT", "failed to write CSV header", err.to_string())
+                })?;
+            writer
+                .write_record([
+                    output.host.clone(),
+                    output.plan.compiled_query.clone(),
+                    serde_json::to_string(&output.plan.mode)
+                        .unwrap_or_default()
+                        .trim_matches('"')
+                        .to_string(),
+                    serde_json::to_string(&output.plan.rank)
+                        .unwrap_or_default()
+                        .trim_matches('"')
+                        .to_string(),
+                    serde_json::to_string(&output.plan.sort)
+                        .unwrap_or_default()
+                        .trim_matches('"')
+                        .to_string(),
+                    output.plan.limit.to_string(),
+                    output.network.will_call_github.to_string(),
+                    output.network.estimated_requests_if_run.to_string(),
+                ])
+                .map_err(|err| {
+                    AppError::with_detail("E_OUTPUT", "failed to write CSV row", err.to_string())
+                })?;
+            write_csv_buffer(writer)
+        }
+    }
+}
+
 pub fn write_inspect(
     output: &InspectOutput,
     format: OutputFormat,
@@ -35,6 +86,20 @@ pub fn write_inspect(
         OutputFormat::Toon => print_toon(output),
         OutputFormat::Compact => print_json(output, false),
         OutputFormat::Csv => print_csv(std::slice::from_ref(&output.repository)),
+    }
+}
+
+pub fn write_compare(
+    output: &CompareOutput,
+    format: OutputFormat,
+    color: ColorPreference,
+) -> AppResult<()> {
+    match format {
+        OutputFormat::Pretty => print_pretty_compare(output, color),
+        OutputFormat::Json => print_json(output, true),
+        OutputFormat::Toon => print_toon(output),
+        OutputFormat::Compact => print_json(output, false),
+        OutputFormat::Csv => print_compare_csv(output),
     }
 }
 
@@ -106,6 +171,32 @@ fn print_pretty_search(output: &SearchOutput, color: ColorPreference) -> AppResu
     Ok(())
 }
 
+fn print_pretty_search_plan(output: &SearchPlanOutput) -> AppResult<()> {
+    let mut stdout = io::stdout().lock();
+    writeln!(stdout, "host: {}", output.host).map_err(|err| {
+        AppError::with_detail("E_OUTPUT", "failed to write plan output", err.to_string())
+    })?;
+    writeln!(stdout, "compiled_query: {}", output.plan.compiled_query).map_err(|err| {
+        AppError::with_detail("E_OUTPUT", "failed to write plan output", err.to_string())
+    })?;
+    writeln!(
+        stdout,
+        "mode: {:?}\nrank: {:?}\nsort: {:?}\nlimit: {}",
+        output.plan.mode, output.plan.rank, output.plan.sort, output.plan.limit
+    )
+    .map_err(|err| {
+        AppError::with_detail("E_OUTPUT", "failed to write plan output", err.to_string())
+    })?;
+    writeln!(
+        stdout,
+        "will_call_github: {}\nestimated_requests_if_run: {}",
+        output.network.will_call_github, output.network.estimated_requests_if_run
+    )
+    .map_err(|err| {
+        AppError::with_detail("E_OUTPUT", "failed to write plan output", err.to_string())
+    })
+}
+
 fn print_pretty_inspect(output: &InspectOutput, color: ColorPreference) -> AppResult<()> {
     let mut stdout = io::stdout().lock();
     writeln!(
@@ -123,6 +214,50 @@ fn print_pretty_inspect(output: &InspectOutput, color: ColorPreference) -> AppRe
         )
     })?;
     write_repo_detail(&mut stdout, &output.repository)?;
+    Ok(())
+}
+
+fn print_pretty_compare(output: &CompareOutput, color: ColorPreference) -> AppResult<()> {
+    let mut stdout = io::stdout().lock();
+    writeln!(
+        stdout,
+        "{}{} repositories{}  host={}",
+        accent(color),
+        output.total_count,
+        reset(color),
+        output.host
+    )
+    .map_err(|err| {
+        AppError::with_detail(
+            "E_OUTPUT",
+            "failed to write compare output",
+            err.to_string(),
+        )
+    })?;
+
+    for item in &output.items {
+        write_repo_block(&mut stdout, &item.repository, color)?;
+        if let Some(summary) = &item.tree_summary {
+            writeln!(
+                stdout,
+                "  tree ref={} entries={} blobs={} dirs={} commits={} truncated={}",
+                summary.reference,
+                summary.total_entries,
+                summary.blobs,
+                summary.trees,
+                summary.commits,
+                summary.truncated
+            )
+            .map_err(|err| {
+                AppError::with_detail(
+                    "E_OUTPUT",
+                    "failed to write compare output",
+                    err.to_string(),
+                )
+            })?;
+        }
+    }
+
     Ok(())
 }
 
@@ -240,6 +375,20 @@ fn write_repo_block(
             explain.activity.unwrap_or(0.0),
             explain.quality.unwrap_or(0.0),
             explain.blended.unwrap_or(0.0)
+        )
+        .map_err(|err| {
+            AppError::with_detail("E_OUTPUT", "failed to write pretty output", err.to_string())
+        })?;
+    }
+    if let Some(probe) = &repo.probe {
+        writeln!(
+            stdout,
+            "  probe paths={} code_matches={} files={} skipped={} truncated={}",
+            probe.matched_paths.len(),
+            probe.total_code_matches,
+            probe.searched_files,
+            probe.skipped_files,
+            probe.truncated
         )
         .map_err(|err| {
             AppError::with_detail("E_OUTPUT", "failed to write pretty output", err.to_string())
@@ -541,13 +690,7 @@ fn print_tree_csv(output: &TreeOutput) -> AppResult<()> {
                 AppError::with_detail("E_OUTPUT", "failed to write CSV row", err.to_string())
             })?;
     }
-    let bytes = writer.into_inner().map_err(|err| {
-        AppError::with_detail("E_OUTPUT", "failed to flush CSV output", err.to_string())
-    })?;
-    let raw = String::from_utf8(bytes).map_err(|err| {
-        AppError::with_detail("E_OUTPUT", "failed to decode CSV output", err.to_string())
-    })?;
-    write_line(raw.trim_end())
+    write_csv_buffer(writer)
 }
 
 fn print_code_csv(output: &CodeSearchOutput) -> AppResult<()> {
@@ -566,6 +709,99 @@ fn print_code_csv(output: &CodeSearchOutput) -> AppResult<()> {
                 })?;
         }
     }
+    write_csv_buffer(writer)
+}
+
+fn print_compare_csv(output: &CompareOutput) -> AppResult<()> {
+    let mut writer = Writer::from_writer(Vec::new());
+    writer
+        .write_record([
+            "full_name",
+            "html_url",
+            "description",
+            "stars",
+            "forks",
+            "language",
+            "topics",
+            "license",
+            "updated_at",
+            "pushed_at",
+            "archived",
+            "template",
+            "fork",
+            "open_issues_count",
+            "contributor_count",
+            "latest_release",
+            "tree_reference",
+            "tree_entries",
+            "tree_blobs",
+            "tree_dirs",
+            "tree_commits",
+            "tree_truncated",
+        ])
+        .map_err(|err| {
+            AppError::with_detail("E_OUTPUT", "failed to write CSV header", err.to_string())
+        })?;
+
+    for item in &output.items {
+        let repo = &item.repository;
+        let license = repo
+            .license
+            .as_ref()
+            .and_then(|license| license.spdx_id.clone().or_else(|| license.name.clone()))
+            .unwrap_or_default();
+        let release = repo
+            .latest_release
+            .as_ref()
+            .map(|release| release.tag_name.clone())
+            .unwrap_or_default();
+        let summary = item.tree_summary.as_ref();
+        writer
+            .write_record([
+                repo.full_name.clone(),
+                repo.html_url.clone(),
+                repo.description.clone().unwrap_or_default(),
+                repo.stargazers_count.to_string(),
+                repo.forks_count.to_string(),
+                repo.language.clone().unwrap_or_default(),
+                repo.topics.join("|"),
+                license,
+                repo.updated_at.to_rfc3339(),
+                repo.pushed_at.to_rfc3339(),
+                repo.archived.to_string(),
+                repo.is_template.to_string(),
+                repo.fork.to_string(),
+                repo.open_issues_count.unwrap_or(0).to_string(),
+                repo.contributor_count.unwrap_or(0).to_string(),
+                release,
+                summary
+                    .map(|value| value.reference.clone())
+                    .unwrap_or_default(),
+                summary
+                    .map(|value| value.total_entries.to_string())
+                    .unwrap_or_default(),
+                summary
+                    .map(|value| value.blobs.to_string())
+                    .unwrap_or_default(),
+                summary
+                    .map(|value| value.trees.to_string())
+                    .unwrap_or_default(),
+                summary
+                    .map(|value| value.commits.to_string())
+                    .unwrap_or_default(),
+                summary
+                    .map(|value| value.truncated.to_string())
+                    .unwrap_or_default(),
+            ])
+            .map_err(|err| {
+                AppError::with_detail("E_OUTPUT", "failed to write CSV row", err.to_string())
+            })?;
+    }
+
+    write_csv_buffer(writer)
+}
+
+fn write_csv_buffer(writer: Writer<Vec<u8>>) -> AppResult<()> {
     let bytes = writer.into_inner().map_err(|err| {
         AppError::with_detail("E_OUTPUT", "failed to flush CSV output", err.to_string())
     })?;
@@ -644,6 +880,7 @@ mod tests {
                 }),
                 matched_surfaces: vec!["name".to_string(), "readme".to_string()],
             }),
+            probe: None,
         }
     }
 

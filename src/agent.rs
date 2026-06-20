@@ -10,7 +10,7 @@ pub struct EmbeddedSkill {
 /// Core skill name used by `gitquarry skills`.
 pub const GITQUARRY_SKILL: &str = "gitquarry";
 
-const GITQUARRY_SKILL_SOURCE: &str = include_str!("../skill/SKILL.md");
+const GITQUARRY_SKILL_SOURCE: &str = include_str!("../skills/gitquarry/SKILL.md");
 
 const SKILLS: &[EmbeddedSkill] = &[EmbeddedSkill {
     name: GITQUARRY_SKILL,

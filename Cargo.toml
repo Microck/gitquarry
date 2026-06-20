@@ -20,7 +20,7 @@ include = [
   "README.md",
   "LICENSE",
   "CHANGELOG.md",
-  "skill/**",
+  "skills/**",
 ]
 
 [dependencies]

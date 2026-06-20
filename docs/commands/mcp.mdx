@@ -1,0 +1,62 @@
+---
+title: "mcp"
+description: "Run gitquarry as a stdio Model Context Protocol server."
+---
+
+# `gitquarry mcp`
+
+Run a stdio JSON-RPC server that exposes gitquarry tools for agents.
+
+## Synopsis
+
+```bash
+gitquarry mcp
+```
+
+## Use With Codex
+
+`gitquarry mcp` is a stdio server. You normally do not run it in a separate terminal; your MCP client launches it when it needs repository search tools.
+
+Start by making sure `gitquarry` works from your shell:
+
+```bash
+gitquarry auth status
+gitquarry search "rust cli" --format json --progress off
+```
+
+Then add it to Codex:
+
+```bash
+codex mcp add gitquarry -- "$(command -v gitquarry)" mcp
+```
+
+If you want the MCP server to use a GitHub Enterprise host:
+
+```bash
+codex mcp add gitquarry-ghe -- "$(command -v gitquarry)" --host https://ghe.example.com mcp
+```
+
+If Codex should receive credentials from the MCP entry instead of inherited shell state:
+
+```bash
+codex mcp add gitquarry \
+  --env GITQUARRY_TOKEN="$GITQUARRY_TOKEN" \
+  -- "$(command -v gitquarry)" mcp
+```
+
+Restart Codex after changing MCP entries so the tool list is rediscovered.
+
+## Tools
+
+- `gitquarry_search` - search GitHub repositories and return JSON output. Accepts `query`, optional `mode`, `rank`, `sort`, `limit`, filters, `plan`, `probe_path`, and `probe_code`.
+- `gitquarry_inspect` - inspect one explicit `owner/repo`. Accepts `repository` and optional `readme`.
+- `gitquarry_tree` - fetch repository paths without cloning. Accepts `repository`, optional `reference`, `path`, `contains`, and `depth`.
+- `gitquarry_code` - search repository file contents without cloning. Accepts `repository`, `pattern`, optional `reference`, `path`, `mode`, `context`, `limit`, and `max_file_bytes`.
+- `gitquarry_compare` - compare explicit repositories side by side. Accepts `repositories`, optional `readme`, and `tree_summary`.
+- `gitquarry_skill` - return the embedded gitquarry operator skill.
+
+The server reads one JSON-RPC request per stdin line and writes one JSON-RPC response per stdout line. This keeps the implementation dependency-light and easy to supervise from agent runners.
+
+## Authentication
+
+The server uses the same credentials as the CLI. Environment variables such as `GITQUARRY_TOKEN` and host-specific token variables are inherited by default when the MCP client launches the command.

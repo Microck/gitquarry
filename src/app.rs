@@ -1,6 +1,7 @@
 use crate::cli::{
-    AuthArgs, AuthCommand, AuthLoginArgs, Cli, CodeArgs, Command, ConfigArgs, ConfigCommand,
-    InspectArgs, SearchArgs, SkillsArgs, SkillsCommand, SourceArgs, SourceCommand, TreeArgs,
+    AuthArgs, AuthCommand, AuthLoginArgs, Cli, CodeArgs, Command, CompareArgs, ConfigArgs,
+    ConfigCommand, InspectArgs, McpArgs, RecipeArgs, RecipeCommand, RecipeRunArgs, SearchArgs,
+    SkillsArgs, SkillsCommand, SourceArgs, SourceCommand, TreeArgs,
 };
 use crate::config::ConfigBundle;
 use crate::credential::{
@@ -10,15 +11,18 @@ use crate::error::{AppError, AppResult};
 use crate::github::GitHubClient;
 use crate::host::{HostContext, normalize_host};
 use crate::model::{
-    CodeMatch, CodeMatchLine, CodeSearchOutput, ColorPreference, CredentialSource, InspectOutput,
-    OutputFormat, ProgressMode, RankMode, Repository, RetrievalMode, SearchOutput,
-    SearchPatternMode, SearchSort, TreeEntry, TreeEntryKind, TreeOutput,
+    BoolFlag, CodeMatch, CodeMatchLine, CodeSearchOutput, ColorPreference, CompareItem,
+    CompareOutput, CredentialSource, DiscoveryDepth, ForkMode, InspectOutput, OutputFormat,
+    ProgressMode, RankMode, Repository, RepositoryProbe, RetrievalMode, SearchOutput,
+    SearchPatternMode, SearchSort, TreeEntry, TreeEntryKind, TreeOutput, TreeSummary,
 };
 use crate::output::{
-    progress, write_code_search, write_inspect, write_line, write_search, write_tree,
+    progress, write_code_search, write_compare, write_inspect, write_line, write_search,
+    write_search_plan, write_tree,
 };
 use crate::query::{
-    apply_post_filters, build_search_plan, compiled_query_has_qualifier, discovery_target,
+    SearchPlanNetwork, SearchPlanOutput, apply_post_filters, build_search_plan,
+    compiled_query_has_qualifier, discovery_target,
 };
 use crate::score::rerank;
 use chrono::{Duration, Utc};
@@ -26,9 +30,11 @@ use clap::{CommandFactory, Parser, error::ErrorKind};
 use clap_complete::generate;
 use rayon::prelude::*;
 use regex::Regex;
+use serde::Deserialize;
 use std::collections::HashMap;
-use std::io::{self, IsTerminal, Read, Write};
-use std::process::exit;
+use std::fs;
+use std::io::{self, BufRead, IsTerminal, Read, Write};
+use std::process::{Command as ProcessCommand, exit};
 
 pub fn main_entry() {
     if let Err(error) = run() {
@@ -80,6 +86,7 @@ fn run() -> AppResult<()> {
             write_line(&content)
         }
         Some(Command::Skills(args)) => skills_command(args),
+        Some(Command::Mcp(args)) => run_mcp(&cli, args),
         _ => {
             let config = ConfigBundle::load()?;
             match &cli.command {
@@ -87,7 +94,10 @@ fn run() -> AppResult<()> {
                 Some(Command::Inspect(args)) => inspect_command(&cli, &config, args),
                 Some(Command::Tree(args)) => tree_command(&cli, &config, args),
                 Some(Command::Code(args)) => code_command(&cli, &config, args),
+                Some(Command::Compare(args)) => compare_command(&cli, &config, args),
                 Some(Command::Source(args)) => source_command(args),
+                Some(Command::Recipe(args)) => recipe_command(&cli, &config, args),
+                Some(Command::Mcp(_)) => unreachable!(),
                 Some(Command::Auth(args)) => auth_command(&cli, &config, args),
                 Some(Command::Config(args)) => config_command(&config, args),
                 Some(Command::Version) => {
@@ -159,7 +169,17 @@ fn source_command(args: &SourceArgs) -> AppResult<()> {
 }
 
 fn search_command(cli: &Cli, config: &ConfigBundle, args: &SearchArgs) -> AppResult<()> {
-    let host = resolve_host(cli, config)?;
+    search_command_with_recipe_host(cli, config, args, None)
+}
+
+fn search_command_with_recipe_host(
+    cli: &Cli,
+    config: &ConfigBundle,
+    args: &SearchArgs,
+    recipe_host: Option<&str>,
+) -> AppResult<()> {
+    validate_search_runtime_flags(args)?;
+    let host = resolve_host_with_recipe(cli, config, recipe_host)?;
     let plan = build_search_plan(
         args,
         config.data.format.unwrap_or(OutputFormat::Pretty),
@@ -167,6 +187,20 @@ fn search_command(cli: &Cli, config: &ConfigBundle, args: &SearchArgs) -> AppRes
         config.data.progress.unwrap_or(ProgressMode::Auto),
         Utc::now(),
     )?;
+
+    if args.plan {
+        let format = plan.format;
+        let output = SearchPlanOutput {
+            host: host.web_host,
+            network: SearchPlanNetwork {
+                will_call_github: false,
+                estimated_requests_if_run: estimate_search_requests(&plan, args),
+            },
+            plan,
+        };
+        return write_search_plan(&output, format);
+    }
+
     let token = resolve_token(&host, config)?;
     let client = GitHubClient::new(host.api_base.clone(), token.token)?;
     let show_progress = progress_enabled(plan.progress);
@@ -250,6 +284,9 @@ fn search_command(cli: &Cli, config: &ConfigBundle, args: &SearchArgs) -> AppRes
     }
 
     repos.truncate(plan.limit);
+    if search_has_probe(args) {
+        enrich_probe_window(&client, &mut repos, args, show_progress)?;
+    }
 
     let output = SearchOutput {
         host: host.web_host,
@@ -267,6 +304,74 @@ fn search_command(cli: &Cli, config: &ConfigBundle, args: &SearchArgs) -> AppRes
         plan.format,
         config.data.color.unwrap_or(ColorPreference::Auto),
     )
+}
+
+fn compare_command(cli: &Cli, config: &ConfigBundle, args: &CompareArgs) -> AppResult<()> {
+    let host = resolve_host(cli, config)?;
+    let show_progress = progress_enabled(
+        args.progress
+            .unwrap_or(config.data.progress.unwrap_or(ProgressMode::Auto)),
+    );
+    let token = resolve_token(&host, config)?;
+    let client = GitHubClient::new(host.api_base.clone(), token.token)?;
+    let mut items = Vec::new();
+
+    for repository in &args.repositories {
+        let (owner, repo) = parse_owner_repo(repository)?;
+        progress(show_progress, format!("comparing {owner}/{repo}"));
+        let mut repository = client.repository(&owner, &repo)?;
+        repository.latest_release = client.latest_release(&owner, &repo)?;
+        repository.contributor_count = client.contributor_count(&owner, &repo)?;
+        if args.readme {
+            repository.readme = client.readme(&owner, &repo)?;
+        }
+        let tree_summary = if args.tree_summary {
+            Some(fetch_tree_summary(&client, &owner, &repo)?)
+        } else {
+            None
+        };
+        items.push(CompareItem {
+            repository,
+            tree_summary,
+        });
+    }
+
+    let output = CompareOutput {
+        host: host.web_host,
+        total_count: items.len(),
+        items,
+    };
+    write_compare(
+        &output,
+        args.format
+            .unwrap_or(config.data.format.unwrap_or(OutputFormat::Pretty)),
+        config.data.color.unwrap_or(ColorPreference::Auto),
+    )
+}
+
+fn recipe_command(cli: &Cli, config: &ConfigBundle, args: &RecipeArgs) -> AppResult<()> {
+    match &args.command {
+        RecipeCommand::Run(args) => recipe_run_command(cli, config, args),
+    }
+}
+
+fn recipe_run_command(cli: &Cli, config: &ConfigBundle, args: &RecipeRunArgs) -> AppResult<()> {
+    let raw = fs::read_to_string(&args.file).map_err(|err| {
+        AppError::with_detail(
+            "E_RECIPE_INVALID",
+            format!("failed to read recipe `{}`", args.file.display()),
+            err.to_string(),
+        )
+    })?;
+    let recipe: SearchRecipe = toml::from_str(&raw).map_err(|err| {
+        AppError::with_detail(
+            "E_RECIPE_INVALID",
+            format!("failed to parse recipe `{}`", args.file.display()),
+            err.to_string(),
+        )
+    })?;
+    let search_args = recipe.to_search_args()?;
+    search_command_with_recipe_host(cli, config, &search_args, recipe.host.as_deref())
 }
 
 fn inspect_command(cli: &Cli, config: &ConfigBundle, args: &InspectArgs) -> AppResult<()> {
@@ -429,6 +534,593 @@ fn config_command(config: &ConfigBundle, args: &ConfigArgs) -> AppResult<()> {
     }
 }
 
+fn run_mcp(cli: &Cli, args: &McpArgs) -> AppResult<()> {
+    let _json_lines = args.json_lines;
+    let stdin = io::stdin();
+    for line in stdin.lock().lines() {
+        let line = line.map_err(|err| {
+            AppError::with_detail("E_MCP", "failed to read stdin", err.to_string())
+        })?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let request: serde_json::Value = serde_json::from_str(&line).map_err(|err| {
+            AppError::with_detail("E_MCP", "failed to parse JSON-RPC request", err.to_string())
+        })?;
+        let Some(id) = request.get("id").cloned() else {
+            continue;
+        };
+        let method = request
+            .get("method")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        let response = match method {
+            "initialize" => serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "serverInfo": {
+                        "name": "gitquarry",
+                        "version": env!("CARGO_PKG_VERSION")
+                    },
+                    "capabilities": {"tools": {}}
+                }
+            }),
+            "tools/list" => serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {"tools": mcp_tool_definitions()}
+            }),
+            "tools/call" => match run_mcp_tool_call(cli, &request) {
+                Ok(result) => serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": result
+                }),
+                Err(error) => serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": {"code": -32000, "message": error.to_string()}
+                }),
+            },
+            _ => serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": {"code": -32601, "message": format!("Method not found: {method}")}
+            }),
+        };
+        write_line(&serde_json::to_string(&response).map_err(|err| {
+            AppError::with_detail(
+                "E_MCP",
+                "failed to serialize JSON-RPC response",
+                err.to_string(),
+            )
+        })?)?;
+    }
+    Ok(())
+}
+
+fn mcp_tool_definitions() -> serde_json::Value {
+    serde_json::json!([
+        {
+            "name": "gitquarry_search",
+            "description": "Search GitHub repositories with gitquarry and return JSON output",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Free-text repository search query"},
+                    "mode": {"type": "string", "enum": ["native", "discover"]},
+                    "rank": {"type": "string", "enum": ["native", "query", "activity", "quality", "blended"]},
+                    "sort": {"type": "string", "enum": ["best-match", "stars", "updated"]},
+                    "limit": {"type": "integer", "minimum": 1},
+                    "language": {"type": "array", "items": {"type": "string"}},
+                    "topic": {"type": "array", "items": {"type": "string"}},
+                    "license": {"type": "array", "items": {"type": "string"}},
+                    "user": {"type": "string"},
+                    "org": {"type": "string"},
+                    "min_stars": {"type": "integer", "minimum": 0},
+                    "max_stars": {"type": "integer", "minimum": 0},
+                    "pushed_within": {"type": "string", "description": "Relative duration such as 30d"},
+                    "readme": {"type": "boolean"},
+                    "explain": {"type": "boolean"},
+                    "plan": {"type": "boolean", "description": "Return the compiled plan without calling GitHub"},
+                    "probe_path": {"type": "array", "items": {"type": "string"}},
+                    "probe_code": {"type": "array", "items": {"type": "string"}}
+                },
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "gitquarry_inspect",
+            "description": "Inspect one explicit owner/repo repository",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "repository": {"type": "string", "description": "Repository in owner/repo form"},
+                    "readme": {"type": "boolean"}
+                },
+                "required": ["repository"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "gitquarry_tree",
+            "description": "Fetch a repository tree without cloning",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "repository": {"type": "string", "description": "Repository in owner/repo form"},
+                    "reference": {"type": "string"},
+                    "path": {"type": "array", "items": {"type": "string"}},
+                    "contains": {"type": "string"},
+                    "depth": {"type": "integer", "minimum": 1}
+                },
+                "required": ["repository"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "gitquarry_code",
+            "description": "Search repository file contents without cloning",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "repository": {"type": "string", "description": "Repository in owner/repo form"},
+                    "pattern": {"type": "string"},
+                    "reference": {"type": "string"},
+                    "path": {"type": "array", "items": {"type": "string"}},
+                    "mode": {"type": "string", "enum": ["literal", "regex"]},
+                    "context": {"type": "integer", "minimum": 0},
+                    "limit": {"type": "integer", "minimum": 1},
+                    "max_file_bytes": {"type": "integer", "minimum": 1}
+                },
+                "required": ["repository", "pattern"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "gitquarry_compare",
+            "description": "Compare explicit repositories side by side",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "repositories": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                    "readme": {"type": "boolean"},
+                    "tree_summary": {"type": "boolean"}
+                },
+                "required": ["repositories"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "gitquarry_skill",
+            "description": "Return the embedded gitquarry operator skill",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "full": {"type": "boolean", "description": "Include full embedded skill content"}
+                },
+                "additionalProperties": false
+            }
+        }
+    ])
+}
+
+fn run_mcp_tool_call(cli: &Cli, request: &serde_json::Value) -> AppResult<serde_json::Value> {
+    let params = request
+        .get("params")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let name = params
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("");
+    let arguments = params
+        .get("arguments")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let text = match name {
+        "gitquarry_search" => run_gitquarry_tool(cli, mcp_search_args(&arguments)?)?,
+        "gitquarry_inspect" => run_gitquarry_tool(cli, mcp_inspect_args(&arguments)?)?,
+        "gitquarry_tree" => run_gitquarry_tool(cli, mcp_tree_args(&arguments)?)?,
+        "gitquarry_code" => run_gitquarry_tool(cli, mcp_code_args(&arguments)?)?,
+        "gitquarry_compare" => run_gitquarry_tool(cli, mcp_compare_args(&arguments)?)?,
+        "gitquarry_skill" => {
+            let full = arguments
+                .get("full")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            if full {
+                crate::agent::skill_full_content(crate::agent::GITQUARRY_SKILL)
+            } else {
+                crate::agent::skill_content(crate::agent::GITQUARRY_SKILL)
+            }
+            .ok_or_else(|| {
+                AppError::new("E_SKILL_UNKNOWN", "embedded gitquarry skill is unavailable")
+            })?
+        }
+        _ => format!("unsupported tool `{name}`"),
+    };
+
+    Ok(serde_json::json!({
+        "content": [{"type": "text", "text": text}]
+    }))
+}
+
+fn run_gitquarry_tool(cli: &Cli, mut args: Vec<String>) -> AppResult<String> {
+    let mut command = ProcessCommand::new(std::env::current_exe().map_err(|err| {
+        AppError::with_detail(
+            "E_MCP",
+            "failed to locate current executable",
+            err.to_string(),
+        )
+    })?);
+    if let Some(host) = &cli.host {
+        command.arg("--host").arg(host);
+    }
+    command.args(args.drain(..));
+    let output = command.output().map_err(|err| {
+        AppError::with_detail(
+            "E_MCP",
+            "failed to run gitquarry tool command",
+            err.to_string(),
+        )
+    })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::new("E_MCP_TOOL", stderr.trim().to_string()));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn mcp_search_args(arguments: &serde_json::Value) -> AppResult<Vec<String>> {
+    let mut args = vec!["search".to_string()];
+    if let Some(query) = string_arg(arguments, "query") {
+        args.push(query);
+    }
+    push_option(&mut args, "--mode", string_arg(arguments, "mode"));
+    push_option(&mut args, "--rank", string_arg(arguments, "rank"));
+    push_option(&mut args, "--sort", string_arg(arguments, "sort"));
+    push_option(&mut args, "--limit", integer_arg(arguments, "limit"));
+    push_option(&mut args, "--user", string_arg(arguments, "user"));
+    push_option(&mut args, "--org", string_arg(arguments, "org"));
+    push_option(
+        &mut args,
+        "--min-stars",
+        integer_arg(arguments, "min_stars"),
+    );
+    push_option(
+        &mut args,
+        "--max-stars",
+        integer_arg(arguments, "max_stars"),
+    );
+    push_option(
+        &mut args,
+        "--pushed-within",
+        string_arg(arguments, "pushed_within"),
+    );
+    push_repeated(
+        &mut args,
+        "--language",
+        string_array_arg(arguments, "language")?,
+    );
+    push_repeated(&mut args, "--topic", string_array_arg(arguments, "topic")?);
+    push_repeated(
+        &mut args,
+        "--license",
+        string_array_arg(arguments, "license")?,
+    );
+    if bool_arg(arguments, "readme") {
+        args.push("--readme".to_string());
+    }
+    if bool_arg(arguments, "explain") {
+        args.push("--explain".to_string());
+    }
+    if bool_arg(arguments, "plan") {
+        args.push("--plan".to_string());
+    }
+    push_repeated(
+        &mut args,
+        "--probe-path",
+        string_array_arg(arguments, "probe_path")?,
+    );
+    push_repeated(
+        &mut args,
+        "--probe-code",
+        string_array_arg(arguments, "probe_code")?,
+    );
+    args.extend(["--format".to_string(), "json".to_string()]);
+    args.extend(["--progress".to_string(), "off".to_string()]);
+    Ok(args)
+}
+
+fn mcp_inspect_args(arguments: &serde_json::Value) -> AppResult<Vec<String>> {
+    let repository = required_string_arg(arguments, "repository")?;
+    let mut args = vec!["inspect".to_string(), repository];
+    if bool_arg(arguments, "readme") {
+        args.push("--readme".to_string());
+    }
+    args.extend(["--format".to_string(), "json".to_string()]);
+    args.extend(["--progress".to_string(), "off".to_string()]);
+    Ok(args)
+}
+
+fn mcp_tree_args(arguments: &serde_json::Value) -> AppResult<Vec<String>> {
+    let repository = required_string_arg(arguments, "repository")?;
+    let mut args = vec!["tree".to_string(), repository];
+    push_option(&mut args, "--reference", string_arg(arguments, "reference"));
+    push_repeated(&mut args, "--path", string_array_arg(arguments, "path")?);
+    push_option(&mut args, "--contains", string_arg(arguments, "contains"));
+    push_option(&mut args, "--depth", integer_arg(arguments, "depth"));
+    args.extend(["--format".to_string(), "json".to_string()]);
+    args.extend(["--progress".to_string(), "off".to_string()]);
+    Ok(args)
+}
+
+fn mcp_code_args(arguments: &serde_json::Value) -> AppResult<Vec<String>> {
+    let repository = required_string_arg(arguments, "repository")?;
+    let pattern = required_string_arg(arguments, "pattern")?;
+    let mut args = vec!["code".to_string(), repository, pattern];
+    push_option(&mut args, "--reference", string_arg(arguments, "reference"));
+    push_repeated(&mut args, "--path", string_array_arg(arguments, "path")?);
+    push_option(&mut args, "--mode", string_arg(arguments, "mode"));
+    push_option(&mut args, "--context", integer_arg(arguments, "context"));
+    push_option(&mut args, "--limit", integer_arg(arguments, "limit"));
+    push_option(
+        &mut args,
+        "--max-file-bytes",
+        integer_arg(arguments, "max_file_bytes"),
+    );
+    args.extend(["--format".to_string(), "json".to_string()]);
+    args.extend(["--progress".to_string(), "off".to_string()]);
+    Ok(args)
+}
+
+fn mcp_compare_args(arguments: &serde_json::Value) -> AppResult<Vec<String>> {
+    let repositories = string_array_arg(arguments, "repositories")?;
+    if repositories.is_empty() {
+        return Err(AppError::new(
+            "E_MCP",
+            "repositories must contain at least one owner/repo value",
+        ));
+    }
+    let mut args = vec!["compare".to_string()];
+    args.extend(repositories);
+    if bool_arg(arguments, "readme") {
+        args.push("--readme".to_string());
+    }
+    if bool_arg(arguments, "tree_summary") {
+        args.push("--tree-summary".to_string());
+    }
+    args.extend(["--format".to_string(), "json".to_string()]);
+    args.extend(["--progress".to_string(), "off".to_string()]);
+    Ok(args)
+}
+
+fn push_option(args: &mut Vec<String>, flag: &str, value: Option<String>) {
+    if let Some(value) = value {
+        args.push(flag.to_string());
+        args.push(value);
+    }
+}
+
+fn push_repeated(args: &mut Vec<String>, flag: &str, values: Vec<String>) {
+    for value in values {
+        args.push(flag.to_string());
+        args.push(value);
+    }
+}
+
+fn required_string_arg(arguments: &serde_json::Value, name: &str) -> AppResult<String> {
+    string_arg(arguments, name).ok_or_else(|| {
+        AppError::new(
+            "E_MCP",
+            format!("missing required string argument `{name}`"),
+        )
+    })
+}
+
+fn string_arg(arguments: &serde_json::Value, name: &str) -> Option<String> {
+    arguments
+        .get(name)
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+}
+
+fn integer_arg(arguments: &serde_json::Value, name: &str) -> Option<String> {
+    arguments
+        .get(name)
+        .and_then(serde_json::Value::as_u64)
+        .map(|value| value.to_string())
+}
+
+fn bool_arg(arguments: &serde_json::Value, name: &str) -> bool {
+    arguments
+        .get(name)
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn string_array_arg(arguments: &serde_json::Value, name: &str) -> AppResult<Vec<String>> {
+    let Some(value) = arguments.get(name) else {
+        return Ok(Vec::new());
+    };
+    if let Some(single) = value.as_str() {
+        return Ok(vec![single.to_string()]);
+    }
+    let Some(items) = value.as_array() else {
+        return Err(AppError::new(
+            "E_MCP",
+            format!("argument `{name}` must be a string or array of strings"),
+        ));
+    };
+    items
+        .iter()
+        .map(|item| {
+            item.as_str().map(str::to_string).ok_or_else(|| {
+                AppError::new(
+                    "E_MCP",
+                    format!("argument `{name}` must contain only strings"),
+                )
+            })
+        })
+        .collect()
+}
+
+fn validate_search_runtime_flags(args: &SearchArgs) -> AppResult<()> {
+    if args.probe_limit == 0 {
+        return Err(AppError::new(
+            "E_FLAG_CONFLICT",
+            "--probe-limit must be greater than 0",
+        ));
+    }
+    if args.probe_match_limit == 0 {
+        return Err(AppError::new(
+            "E_FLAG_CONFLICT",
+            "--probe-match-limit must be greater than 0",
+        ));
+    }
+    compile_globs(&args.probe_paths)?;
+    for pattern in &args.probe_code {
+        PatternMatcher::new(pattern, args.probe_mode)?;
+    }
+    Ok(())
+}
+
+fn search_has_probe(args: &SearchArgs) -> bool {
+    !args.probe_paths.is_empty() || !args.probe_code.is_empty()
+}
+
+fn estimate_search_requests(plan: &crate::query::SearchPlan, args: &SearchArgs) -> usize {
+    let mut requests = match plan.mode {
+        RetrievalMode::Native => 1,
+        RetrievalMode::Discover => match plan.depth {
+            DiscoveryDepth::Quick => 1,
+            DiscoveryDepth::Balanced => 3,
+            DiscoveryDepth::Deep => 6,
+        },
+    };
+
+    if plan.mode == RetrievalMode::Discover || plan.rank != RankMode::Native {
+        requests += plan.limit.saturating_mul(3);
+    }
+    if plan.readme {
+        requests += plan.limit.min(20).min((plan.limit * 2).max(10));
+    }
+    if search_has_probe(args) {
+        requests += plan.limit;
+        if !args.probe_code.is_empty() {
+            requests += plan.limit.saturating_mul(args.probe_limit);
+        }
+    }
+
+    requests
+}
+
+fn enrich_probe_window(
+    client: &GitHubClient,
+    repos: &mut [Repository],
+    args: &SearchArgs,
+    show_progress: bool,
+) -> AppResult<()> {
+    let path_matchers = compile_globs(&args.probe_paths)?;
+    let code_matchers = args
+        .probe_code
+        .iter()
+        .map(|pattern| PatternMatcher::new(pattern, args.probe_mode))
+        .collect::<AppResult<Vec<_>>>()?;
+
+    for repo in repos {
+        let (owner, name) = parse_owner_repo(&repo.full_name)?;
+        let reference = resolve_reference(client, &owner, &name, None)?;
+        progress(
+            show_progress,
+            format!("probing {}@{}", repo.full_name, reference),
+        );
+        let tree = client.repository_tree(&owner, &name, &reference)?;
+        let matched_paths = if path_matchers.is_empty() {
+            Vec::new()
+        } else {
+            tree.entries
+                .iter()
+                .filter(|entry| {
+                    path_matchers
+                        .iter()
+                        .any(|matcher| matcher.is_match(&entry.path))
+                })
+                .cloned()
+                .collect()
+        };
+
+        let mut code_matches = Vec::new();
+        let mut searched_files = 0usize;
+        let mut skipped_files = 0usize;
+        if !code_matchers.is_empty() {
+            let files = candidate_code_files(
+                tree.entries.clone(),
+                &args.probe_paths,
+                args.probe_max_file_bytes,
+            )?;
+            for file in files.into_iter().take(args.probe_limit) {
+                progress(show_progress, format!("probing {}", file.path));
+                match client.file_text(&owner, &name, &file.path, &reference)? {
+                    Some(text) => {
+                        searched_files += 1;
+                        for matcher in &code_matchers {
+                            append_code_matches(
+                                &mut code_matches,
+                                &file.path,
+                                &text,
+                                matcher,
+                                args.probe_context,
+                                args.probe_match_limit,
+                            );
+                        }
+                    }
+                    None => skipped_files += 1,
+                }
+            }
+        }
+
+        repo.probe = Some(RepositoryProbe {
+            reference: tree.reference,
+            truncated: tree.truncated,
+            matched_paths,
+            searched_files,
+            skipped_files,
+            total_code_matches: code_matches.len(),
+            code_matches,
+        });
+    }
+
+    Ok(())
+}
+
+fn fetch_tree_summary(client: &GitHubClient, owner: &str, repo: &str) -> AppResult<TreeSummary> {
+    let reference = resolve_reference(client, owner, repo, None)?;
+    let tree = client.repository_tree(owner, repo, &reference)?;
+    let mut blobs = 0usize;
+    let mut trees = 0usize;
+    let mut commits = 0usize;
+    for entry in &tree.entries {
+        match entry.kind {
+            TreeEntryKind::Blob => blobs += 1,
+            TreeEntryKind::Tree => trees += 1,
+            TreeEntryKind::Commit => commits += 1,
+        }
+    }
+    Ok(TreeSummary {
+        reference: tree.reference,
+        truncated: tree.truncated,
+        total_entries: tree.entries.len(),
+        blobs,
+        trees,
+        commits,
+    })
+}
+
 fn auth_login(config: &ConfigBundle, host: &HostContext, args: &AuthLoginArgs) -> AppResult<()> {
     let token = if args.token_stdin {
         let mut buffer = String::new();
@@ -501,6 +1193,19 @@ fn auth_logout(config: &ConfigBundle, host: &HostContext) -> AppResult<()> {
 
 fn resolve_host(cli: &Cli, config: &ConfigBundle) -> AppResult<HostContext> {
     let host = cli.host.as_deref().or(config.data.host.as_deref());
+    normalize_host(host)
+}
+
+fn resolve_host_with_recipe(
+    cli: &Cli,
+    config: &ConfigBundle,
+    recipe_host: Option<&str>,
+) -> AppResult<HostContext> {
+    let host = cli
+        .host
+        .as_deref()
+        .or(recipe_host)
+        .or(config.data.host.as_deref());
     normalize_host(host)
 }
 
@@ -808,6 +1513,128 @@ fn discovery_search(
     Ok(pool)
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+struct SearchRecipe {
+    host: Option<String>,
+    query: Option<String>,
+    mode: Option<RetrievalMode>,
+    rank: Option<RankMode>,
+    sort: Option<SearchSort>,
+    depth: Option<DiscoveryDepth>,
+    format: Option<OutputFormat>,
+    limit: Option<usize>,
+    user: Option<String>,
+    org: Option<String>,
+    archived: Option<bool>,
+    template: Option<bool>,
+    fork: Option<ForkMode>,
+    #[serde(default)]
+    language: Vec<String>,
+    #[serde(default)]
+    topic: Vec<String>,
+    #[serde(default)]
+    license: Vec<String>,
+    min_stars: Option<u64>,
+    max_stars: Option<u64>,
+    min_forks: Option<u64>,
+    max_forks: Option<u64>,
+    min_size: Option<u64>,
+    max_size: Option<u64>,
+    created_after: Option<String>,
+    created_before: Option<String>,
+    updated_after: Option<String>,
+    updated_before: Option<String>,
+    pushed_after: Option<String>,
+    pushed_before: Option<String>,
+    created_within: Option<String>,
+    updated_within: Option<String>,
+    pushed_within: Option<String>,
+    readme: Option<bool>,
+    explain: Option<bool>,
+    weight_query: Option<f64>,
+    weight_activity: Option<f64>,
+    weight_quality: Option<f64>,
+    concurrency: Option<usize>,
+    progress: Option<ProgressMode>,
+    plan: Option<bool>,
+    #[serde(default)]
+    probe_path: Vec<String>,
+    #[serde(default)]
+    probe_code: Vec<String>,
+    probe_mode: Option<SearchPatternMode>,
+    probe_context: Option<usize>,
+    probe_limit: Option<usize>,
+    probe_match_limit: Option<usize>,
+    probe_max_file_bytes: Option<u64>,
+}
+
+impl SearchRecipe {
+    fn to_search_args(&self) -> AppResult<SearchArgs> {
+        if self.host.as_deref().is_some_and(str::is_empty) {
+            return Err(AppError::new(
+                "E_RECIPE_INVALID",
+                "recipe host must not be empty",
+            ));
+        }
+        Ok(SearchArgs {
+            query: self.query.clone(),
+            mode: self.mode,
+            rank: self.rank,
+            sort: self.sort.unwrap_or_default(),
+            depth: self.depth,
+            format: self.format,
+            limit: self.limit,
+            user: self.user.clone(),
+            org: self.org.clone(),
+            archived: self.archived.map(bool_flag),
+            template: self.template.map(bool_flag),
+            fork: self.fork,
+            language: self.language.clone(),
+            topic: self.topic.clone(),
+            license: self.license.clone(),
+            min_stars: self.min_stars,
+            max_stars: self.max_stars,
+            min_forks: self.min_forks,
+            max_forks: self.max_forks,
+            min_size: self.min_size,
+            max_size: self.max_size,
+            created_after: self.created_after.clone(),
+            created_before: self.created_before.clone(),
+            updated_after: self.updated_after.clone(),
+            updated_before: self.updated_before.clone(),
+            pushed_after: self.pushed_after.clone(),
+            pushed_before: self.pushed_before.clone(),
+            created_within: self.created_within.clone(),
+            updated_within: self.updated_within.clone(),
+            pushed_within: self.pushed_within.clone(),
+            readme: self.readme.unwrap_or(false),
+            explain: self.explain.unwrap_or(false),
+            weight_query: self.weight_query,
+            weight_activity: self.weight_activity,
+            weight_quality: self.weight_quality,
+            concurrency: self.concurrency,
+            progress: self.progress,
+            plan: self.plan.unwrap_or(false),
+            probe_paths: self.probe_path.clone(),
+            probe_code: self.probe_code.clone(),
+            probe_mode: self.probe_mode.unwrap_or_default(),
+            probe_context: self.probe_context.unwrap_or(0),
+            probe_limit: self.probe_limit.unwrap_or(20),
+            probe_match_limit: self.probe_match_limit.unwrap_or(100),
+            probe_max_file_bytes: self.probe_max_file_bytes.unwrap_or(1_000_000),
+        })
+    }
+}
+
+fn bool_flag(value: bool) -> BoolFlag {
+    if value {
+        BoolFlag::True
+    } else {
+        BoolFlag::False
+    }
+}
+
 fn enrich_metadata(
     client: &GitHubClient,
     repos: &mut [Repository],
@@ -951,6 +1778,7 @@ mod tests {
             latest_release: None,
             contributor_count: None,
             explain: None,
+            probe: None,
         }
     }
 

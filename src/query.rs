@@ -5,9 +5,9 @@ use crate::model::{
 };
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchPlan {
     pub query: Option<String>,
     pub compiled_query: String,
@@ -26,7 +26,20 @@ pub struct SearchPlan {
     pub native_query_present: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchPlanOutput {
+    pub host: String,
+    pub plan: SearchPlan,
+    pub network: SearchPlanNetwork,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchPlanNetwork {
+    pub will_call_github: bool,
+    pub estimated_requests_if_run: usize,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PostFilters {
     pub updated_after: Option<DateTime<Utc>>,
     pub updated_before: Option<DateTime<Utc>>,
@@ -572,6 +585,14 @@ mod tests {
             weight_quality: None,
             concurrency: None,
             progress: None,
+            plan: false,
+            probe_paths: Vec::new(),
+            probe_code: Vec::new(),
+            probe_mode: crate::model::SearchPatternMode::Literal,
+            probe_context: 0,
+            probe_limit: 20,
+            probe_match_limit: 100,
+            probe_max_file_bytes: 1_000_000,
         }
     }
 
@@ -600,6 +621,7 @@ mod tests {
             latest_release: None,
             contributor_count: Some(1),
             explain: None,
+            probe: None,
         }
     }
 

@@ -111,6 +111,55 @@ Examples:
 - `--readme` enables README enrichment for the top candidate window
 - `--explain` exposes ranking reasons in enhanced modes
 
+## Plan Output
+
+```bash
+--plan
+```
+
+`--plan` prints the compiled search plan without resolving auth or calling GitHub. Use it to debug structured filters, raw query conflicts, output format, effective mode, and estimated request counts before running a search.
+
+Example:
+
+```bash
+gitquarry search "release automation" \
+  --language rust \
+  --topic cli \
+  --sort stars \
+  --plan \
+  --format json
+```
+
+## Probe Evidence
+
+```bash
+--probe-path <GLOB>
+--probe-code <PATTERN>
+--probe-mode literal|regex
+--probe-context <N>
+--probe-limit <N>
+--probe-match-limit <N>
+--probe-max-file-bytes <BYTES>
+```
+
+Probe flags attach explicit no-clone evidence to the final result window. They do not change search order or ranking.
+
+- `--probe-path` records matching tree entries
+- `--probe-code` searches candidate files for code evidence
+- repeated `--probe-path` values use OR semantics
+- `--probe-limit` bounds file-content fetches per repository
+- `--probe-match-limit` bounds recorded code matches per repository
+
+Example:
+
+```bash
+gitquarry search "github app rust" \
+  --probe-path "Cargo.toml" \
+  --probe-path "src/*.rs" \
+  --probe-code "octocrab" \
+  --format toon
+```
+
 ## Output
 
 ```bash

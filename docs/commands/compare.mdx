@@ -1,0 +1,49 @@
+---
+title: "compare"
+description: "Reference for gitquarry compare, the side-by-side explicit repository comparison command."
+---
+
+# `gitquarry compare`
+
+Compare known repositories side by side.
+
+## Synopsis
+
+```bash
+gitquarry compare [OPTIONS] <OWNER/REPO>...
+```
+
+## Behavior
+
+`compare` is for explicit repositories you already know. It fetches the same core repository metadata as `inspect` for each input and preserves input order.
+
+It does not discover repositories and does not assign a trust score.
+
+## Options
+
+```bash
+--readme
+--tree-summary
+--format pretty|json|toon|compact|csv
+--progress auto|on|off
+```
+
+- `--readme` includes README text for each repository.
+- `--tree-summary` includes lightweight default-branch counts for blobs, directories, gitlinks, and truncation state.
+
+## Examples
+
+Compare a shortlist:
+
+```bash
+gitquarry compare rust-lang/rust tokio-rs/tokio burn-rs/burn
+```
+
+Use structured output for agent workflows:
+
+```bash
+gitquarry compare rust-lang/rust tokio-rs/tokio \
+  --tree-summary \
+  --format toon \
+  --progress off
+```

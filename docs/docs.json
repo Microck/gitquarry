@@ -96,7 +96,10 @@
               "commands/inspect",
               "commands/tree",
               "commands/code",
+              "commands/compare",
               "commands/source",
+              "commands/recipe",
+              "commands/mcp",
               "commands/skills",
               "commands/auth",
               "commands/config"

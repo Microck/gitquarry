@@ -23,7 +23,12 @@ The core contract is:
 
 - `gitquarry search [OPTIONS] [QUERY]`
 - `gitquarry inspect [OPTIONS] <OWNER/REPO>`
+- `gitquarry tree [OPTIONS] <OWNER/REPO>`
+- `gitquarry code [OPTIONS] <OWNER/REPO> <PATTERN>`
+- `gitquarry compare [OPTIONS] <OWNER/REPO>...`
 - `gitquarry source path [OPTIONS] <SPEC>`
+- `gitquarry recipe run <FILE>`
+- `gitquarry mcp`
 - `gitquarry agent`
 - `gitquarry skills [list]`
 - `gitquarry skills get <NAME> [--full]`
@@ -100,6 +105,8 @@ These must remain explicit per command:
 - blended ranking weights
 - discovery-only engine knobs
 
+Checked-in recipes may contain these values because they are explicit, reviewed inputs to `recipe run`, not hidden saved defaults.
+
 ## Search
 
 ### Synopsis
@@ -114,6 +121,8 @@ gitquarry search [OPTIONS] [QUERY]
 - default output format is `pretty`
 - default result limit is `10`
 - empty query is invalid in plain native search
+- `--plan` prints the compiled search plan without auth resolution or network requests
+- probe flags add explicit evidence to final results but do not change order or ranking
 
 ### Output Formats
 
@@ -444,6 +453,86 @@ gitquarry inspect [OPTIONS] <OWNER/REPO>
 
 - `--readme`
 - `--format pretty|json|toon|compact|csv`
+
+## Tree
+
+### Synopsis
+
+```bash
+gitquarry tree [OPTIONS] <OWNER/REPO>
+```
+
+### Behavior
+
+- fetch a repository tree through the GitHub API without cloning
+- default to the repository default branch
+- support explicit `--reference`
+- support path glob, text, and depth filtering before rendering
+
+## Code
+
+### Synopsis
+
+```bash
+gitquarry code [OPTIONS] <OWNER/REPO> <PATTERN>
+```
+
+### Behavior
+
+- fetch a repository tree, filter candidate blobs, and fetch bounded file contents
+- support literal and regex matching
+- support path glob filters, context lines, match limits, and maximum file size
+- do not clone repositories
+
+## Compare
+
+### Synopsis
+
+```bash
+gitquarry compare [OPTIONS] <OWNER/REPO>...
+```
+
+### Behavior
+
+- accept only explicit `owner/repo` inputs
+- preserve input order
+- fetch repository metadata, latest release, and contributor count for each repository
+- include README only with `--readme`
+- include tree counts only with `--tree-summary`
+- do not discover repositories or compute a trust score
+
+## Recipe
+
+### Synopsis
+
+```bash
+gitquarry recipe run <FILE>
+```
+
+### Behavior
+
+- read one TOML recipe file
+- map recipe keys directly to `search` flags
+- reject unknown keys with `E_RECIPE_INVALID`
+- never read credentials from recipe files
+- host precedence is CLI `--host`, then recipe `host`, then saved config, then `github.com`
+
+## MCP
+
+### Synopsis
+
+```bash
+gitquarry mcp
+```
+
+### Behavior
+
+- run a stdio JSON-RPC server for MCP clients
+- support `initialize`, `tools/list`, and `tools/call`
+- expose search, inspect, tree, code, compare, and skill tools
+- return tool output as MCP text content
+- use the same credential and host resolution as the CLI
+- keep diagnostics and errors out of tool content
 
 ## Source
 

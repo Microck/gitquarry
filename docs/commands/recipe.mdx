@@ -1,0 +1,60 @@
+---
+title: "recipe"
+description: "Reference for gitquarry recipe run, the TOML search recipe command."
+---
+
+# `gitquarry recipe`
+
+Run checked-in search recipes.
+
+## Synopsis
+
+```bash
+gitquarry recipe run <FILE>
+```
+
+## Behavior
+
+`recipe run` reads one TOML file and maps it directly to `gitquarry search` flags. It is intended for shared, reviewed workflows in repos, docs, CI jobs, and incident runbooks.
+
+Recipes cannot contain credentials. Use normal host-scoped auth, `GITQUARRY_TOKEN`, or host-specific token environment variables.
+
+Host precedence is:
+
+1. CLI `--host`
+2. recipe `host`
+3. saved config `host`
+4. `github.com`
+
+Unknown recipe keys fail with `E_RECIPE_INVALID`.
+
+## Example
+
+```toml
+# .gitquarry/recipes/rust-cli.toml
+query = "rust cli"
+language = ["rust"]
+topic = ["cli"]
+sort = "stars"
+limit = 20
+format = "json"
+progress = "off"
+```
+
+```bash
+gitquarry recipe run .gitquarry/recipes/rust-cli.toml
+```
+
+## Supported Keys
+
+Recipe keys match search options:
+
+- query, host, mode, rank, sort, depth
+- format, limit, progress
+- user, org, archived, template, fork
+- language, topic, license
+- min-stars, max-stars, min-forks, max-forks, min-size, max-size
+- created-after, created-before, updated-after, updated-before, pushed-after, pushed-before
+- created-within, updated-within, pushed-within
+- readme, explain, weight-query, weight-activity, weight-quality, concurrency
+- plan, probe-path, probe-code, probe-mode, probe-context, probe-limit, probe-match-limit, probe-max-file-bytes

@@ -19,7 +19,7 @@
 
 the main setup path is `gitquarry auth login`. on a real terminal it prompts for a GitHub personal access token, validates it immediately, saves it for the current host, and then uses that same host-scoped credential flow for normal search commands, repository inspection, and scripted JSON output. if you prefer environment-based auth, host-specific overrides and an explicit insecure fallback path also exist, but they stay explicit.
 
-[documentation](./docs/index.mdx) | [npm](https://www.npmjs.com/package/gitquarry) | [github](https://github.com/Microck/gitquarry)
+[documentation](./docs/index.mdx) | [npm](https://www.npmjs.com/package/gitquarry) | [github](https://github.com/Microck/gitquarry) | [mcp](./docs/commands/mcp.mdx)
 
 ## why
 
@@ -29,6 +29,8 @@ if you already use GitHub repository search and want a CLI that stays honest abo
 - discover mode is explicit, so broader candidate collection and reranking only happen when you opt in
 - README enrichment is off unless you request it
 - output modes are practical for both humans and scripts: `pretty`, `json`, `toon`, `compact`, and `csv`
+- `--plan` and probe flags make searches easier to debug and verify without changing default ranking
+- `compare` and `recipe run` cover shortlist evaluation and reproducible checked-in searches
 - auth handling is host-aware and works with secure storage, env overrides, or an explicit insecure fallback
 - failure modes are intended to be clear, narrow, and script-friendly
 
@@ -171,7 +173,10 @@ for a GitHub Enterprise host, gitquarry derives the env var name from the normal
 | `gitquarry inspect` | inspect one explicit `owner/repo` with optional README inclusion |
 | `gitquarry tree` | print a repository file tree from GitHub without cloning |
 | `gitquarry code` | search repository file contents from GitHub without cloning |
+| `gitquarry compare` | compare explicit repositories side by side |
 | `gitquarry source` | fetch or locate source code through `opensrc` when explicitly requested |
+| `gitquarry recipe` | run checked-in TOML search recipes |
+| `gitquarry mcp` | run a stdio MCP server exposing repository search tools |
 | `gitquarry agent` | print the embedded agent skill guide for choosing commands and output modes |
 | `gitquarry skills` | list and load embedded, version-matched agent skills |
 | `gitquarry auth` | save, inspect, and remove host-scoped personal access tokens |
@@ -197,7 +202,10 @@ gitquarry search [OPTIONS] [QUERY]
 gitquarry inspect [OPTIONS] <OWNER/REPO>
 gitquarry tree [OPTIONS] <OWNER/REPO>
 gitquarry code [OPTIONS] <OWNER/REPO> <PATTERN>
+gitquarry compare [OPTIONS] <OWNER/REPO>...
 gitquarry source path [OPTIONS] <SPEC>
+gitquarry recipe run <FILE>
+gitquarry mcp
 gitquarry agent
 gitquarry skills [list]
 gitquarry skills get <NAME> [--full]
@@ -217,6 +225,7 @@ search-specific controls include:
 - range filters like `--min-stars`, `--max-stars`, `--min-forks`, `--max-forks`
 - date filters like `--created-after`, `--updated-before`, `--pushed-within`
 - enhancement flags like `--readme`, `--explain`, and blended ranking weights
+- plan/probe flags like `--plan`, `--probe-path`, and `--probe-code`
 
 inspect-specific controls stay intentionally narrow:
 
