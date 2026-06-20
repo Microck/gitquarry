@@ -1,30 +1,30 @@
 class Gitquarry < Formula
   desc "Terminal CLI for public GitHub repository search with explicit discovery controls"
   homepage "https://github.com/Microck/gitquarry"
-  version "0.1.9"
+  version "0.1.10"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/Microck/gitquarry/releases/download/v0.1.9/gitquarry-v0.1.9-aarch64-apple-darwin.tar.gz"
-      sha256 "e4e1df812a6472331e2a34ff6fbd83a7cf1918a97b3e251cead9f748d6b6bf60"
+      url "https://github.com/Microck/gitquarry/releases/download/v0.1.10/gitquarry-v0.1.10-aarch64-apple-darwin.tar.gz"
+      sha256 "f4cc1b3d54b5c576fc306085ebae89c53c0bdad29a348d9ed38a6af2dafb12d6"
     end
 
     if Hardware::CPU.intel?
-      url "https://github.com/Microck/gitquarry/releases/download/v0.1.9/gitquarry-v0.1.9-x86_64-apple-darwin.tar.gz"
-      sha256 "43170f2a79d273c0bb847a09b38d5a6a7655e818d1e04e3ce15f384b0dc69c8c"
+      url "https://github.com/Microck/gitquarry/releases/download/v0.1.10/gitquarry-v0.1.10-x86_64-apple-darwin.tar.gz"
+      sha256 "8e26541354be175d6970238113f2d7d796a708190c723bd43e983eaa29baf0cb"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/Microck/gitquarry/releases/download/v0.1.9/gitquarry-v0.1.9-aarch64-unknown-linux-gnu.tar.gz"
-      sha256 "d17b90152b2a6419fc4fb07fde76462653fd37fe72f2bd89f776b75e84110a60"
+      url "https://github.com/Microck/gitquarry/releases/download/v0.1.10/gitquarry-v0.1.10-aarch64-unknown-linux-gnu.tar.gz"
+      sha256 "334b0fa8c6df47d6904ba4dc4887b1f4da456a01323e44f39a78c2016ecdcfdb"
     end
 
     if Hardware::CPU.intel?
-      url "https://github.com/Microck/gitquarry/releases/download/v0.1.9/gitquarry-v0.1.9-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "db8aa0afcbf620e8d18d1e83ca881a7c8ca1f8702f6be255a8d64cf9d2569f63"
+      url "https://github.com/Microck/gitquarry/releases/download/v0.1.10/gitquarry-v0.1.10-x86_64-unknown-linux-gnu.tar.gz"
+      sha256 "34c4b06ffccab1adfa2270b84a9ba5175e178c162d213715f6a0f911db426403"
     end
   end
 
