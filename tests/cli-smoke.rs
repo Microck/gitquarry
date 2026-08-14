@@ -287,6 +287,17 @@ fn local_command(temp: &TempDir) -> Command {
     command
 }
 
+fn mcp_meta() -> serde_json::Value {
+    serde_json::json!({
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {},
+        "io.modelcontextprotocol/clientInfo": {
+            "name": "gitquarry-test",
+            "version": "1.0.0"
+        }
+    })
+}
+
 fn host_key(host: &str) -> String {
     host.trim_start_matches("http://")
         .trim_start_matches("https://")
@@ -502,13 +513,23 @@ fn mcp_lists_gitquarry_tools() {
         writeln!(
             stdin,
             "{}",
-            serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize"})
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "server/discover",
+                "params": {"_meta": mcp_meta()}
+            })
         )
         .unwrap();
         writeln!(
             stdin,
             "{}",
-            serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/list"})
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/list",
+                "params": {"_meta": mcp_meta()}
+            })
         )
         .unwrap();
     }
@@ -525,10 +546,129 @@ fn mcp_lists_gitquarry_tools() {
         .lines()
         .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
         .collect::<Vec<_>>();
-    assert_eq!(responses[0]["result"]["serverInfo"]["name"], "gitquarry");
+    assert_eq!(responses[0]["result"]["supportedVersions"][0], "2026-07-28");
+    assert_eq!(responses[0]["result"]["resultType"], "complete");
+    assert_eq!(
+        responses[0]["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],
+        "gitquarry"
+    );
+    assert_eq!(responses[1]["result"]["resultType"], "complete");
+    assert_eq!(responses[1]["result"]["cacheScope"], "public");
+    assert_eq!(responses[1]["result"]["ttlMs"], 300_000);
     let tools = responses[1]["result"]["tools"].as_array().unwrap();
     assert!(tools.iter().any(|tool| tool["name"] == "gitquarry_search"));
     assert!(tools.iter().any(|tool| tool["name"] == "gitquarry_skill"));
+}
+
+#[test]
+fn mcp_rejects_legacy_initialize() {
+    let temp = TempDir::new().unwrap();
+    let mut command = local_command(&temp);
+    command
+        .arg("mcp")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().unwrap();
+    {
+        let stdin = child.stdin.as_mut().unwrap();
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-11-25",
+                    "capabilities": {},
+                    "clientInfo": {"name": "legacy-client", "version": "1.0.0"}
+                }
+            })
+        )
+        .unwrap();
+    }
+    drop(child.stdin.take());
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    let response: serde_json::Value =
+        serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+    assert_eq!(response["error"]["code"], -32022);
+    assert_eq!(response["error"]["data"]["requested"], "2025-11-25");
+    assert_eq!(response["error"]["data"]["supported"][0], "2026-07-28");
+}
+
+#[test]
+fn mcp_rejects_missing_request_metadata() {
+    let temp = TempDir::new().unwrap();
+    let mut command = local_command(&temp);
+    command
+        .arg("mcp")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().unwrap();
+    {
+        let stdin = child.stdin.as_mut().unwrap();
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":1,"method":"tools/list"})
+        )
+        .unwrap();
+    }
+    drop(child.stdin.take());
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    let response: serde_json::Value =
+        serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+    assert_eq!(response["error"]["code"], -32602);
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("clientCapabilities")
+    );
+}
+
+#[test]
+fn mcp_rejects_unsupported_protocol_version() {
+    let temp = TempDir::new().unwrap();
+    let mut command = local_command(&temp);
+    command
+        .arg("mcp")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().unwrap();
+    {
+        let stdin = child.stdin.as_mut().unwrap();
+        let mut meta = mcp_meta();
+        meta["io.modelcontextprotocol/protocolVersion"] =
+            serde_json::Value::String("2025-11-25".to_string());
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "server/discover",
+                "params": {"_meta": meta}
+            })
+        )
+        .unwrap();
+    }
+    drop(child.stdin.take());
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    let response: serde_json::Value =
+        serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+    assert_eq!(response["error"]["code"], -32022);
+    assert_eq!(response["error"]["data"]["requested"], "2025-11-25");
+    assert_eq!(response["error"]["data"]["supported"][0], "2026-07-28");
 }
 
 #[test]
@@ -552,6 +692,7 @@ fn mcp_search_tool_calls_gitquarry_search() {
                 "id": 1,
                 "method": "tools/call",
                 "params": {
+                    "_meta": mcp_meta(),
                     "name": "gitquarry_search",
                     "arguments": {
                         "query": "rust cli",
@@ -574,9 +715,167 @@ fn mcp_search_tool_calls_gitquarry_search() {
     assert_eq!(request_count.load(Ordering::SeqCst), 1);
     let response: serde_json::Value =
         serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+    assert_eq!(response["result"]["resultType"], "complete");
+    assert_eq!(response["result"]["isError"], false);
+    assert_eq!(
+        response["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],
+        "gitquarry"
+    );
     let text = response["result"]["content"][0]["text"].as_str().unwrap();
     let payload: serde_json::Value = serde_json::from_str(text).unwrap();
     assert_eq!(payload["items"][0]["full_name"], "example/rocket");
+}
+
+#[test]
+fn mcp_unknown_tool_is_a_protocol_error() {
+    let temp = TempDir::new().unwrap();
+    let mut command = local_command(&temp);
+    command
+        .arg("mcp")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().unwrap();
+    {
+        let stdin = child.stdin.as_mut().unwrap();
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "_meta": mcp_meta(),
+                    "name": "missing_tool",
+                    "arguments": {}
+                }
+            })
+        )
+        .unwrap();
+    }
+    drop(child.stdin.take());
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    let response: serde_json::Value =
+        serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+    assert_eq!(response["error"]["code"], -32602);
+}
+
+#[test]
+fn mcp_rejects_invalid_tool_arguments() {
+    let temp = TempDir::new().unwrap();
+    let mut command = local_command(&temp);
+    command
+        .arg("mcp")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().unwrap();
+    {
+        let stdin = child.stdin.as_mut().unwrap();
+        for (id, arguments) in [
+            (1, serde_json::json!({"query": "rust cli", "limit": "one"})),
+            (
+                2,
+                serde_json::json!({"query": "rust cli", "unexpected": true}),
+            ),
+            (3, serde_json::json!({"query": "rust cli", "limit": -1})),
+        ] {
+            writeln!(
+                stdin,
+                "{}",
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "method": "tools/call",
+                    "params": {
+                        "_meta": mcp_meta(),
+                        "name": "gitquarry_search",
+                        "arguments": arguments
+                    }
+                })
+            )
+            .unwrap();
+        }
+    }
+    drop(child.stdin.take());
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    let responses = String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(responses.len(), 3);
+    assert_eq!(responses[0]["error"]["code"], -32602);
+    assert!(
+        responses[0]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("limit")
+    );
+    assert_eq!(responses[1]["error"]["code"], -32602);
+    assert!(
+        responses[1]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("unexpected")
+    );
+    assert_eq!(responses[2]["error"]["code"], -32602);
+    assert!(
+        responses[2]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("limit")
+    );
+}
+
+#[test]
+fn mcp_tool_failure_is_returned_as_a_tool_result_error() {
+    let temp = TempDir::new().unwrap();
+    let host = "http://127.0.0.1:1/api/v3";
+    let mut command = base_command(&temp, host);
+    command
+        .arg("mcp")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = command.spawn().unwrap();
+    {
+        let stdin = child.stdin.as_mut().unwrap();
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "_meta": mcp_meta(),
+                    "name": "gitquarry_search",
+                    "arguments": {"query": "rust cli"}
+                }
+            })
+        )
+        .unwrap();
+    }
+    drop(child.stdin.take());
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    let response: serde_json::Value =
+        serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+    assert_eq!(response["result"]["resultType"], "complete");
+    assert_eq!(response["result"]["isError"], true);
+    assert!(
+        response["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("failed")
+    );
 }
 
 #[test]

@@ -36,6 +36,12 @@ use std::fs;
 use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::process::{Command as ProcessCommand, exit};
 
+const MCP_PROTOCOL_VERSION: &str = "2026-07-28";
+const MCP_PROTOCOL_VERSION_META: &str = "io.modelcontextprotocol/protocolVersion";
+const MCP_CLIENT_CAPABILITIES_META: &str = "io.modelcontextprotocol/clientCapabilities";
+const MCP_SERVER_INFO_META: &str = "io.modelcontextprotocol/serverInfo";
+const MCP_CACHE_TTL_MS: u64 = 300_000;
+
 pub fn main_entry() {
     if let Err(error) = run() {
         eprintln!("{error}");
@@ -534,8 +540,7 @@ fn config_command(config: &ConfigBundle, args: &ConfigArgs) -> AppResult<()> {
     }
 }
 
-fn run_mcp(cli: &Cli, args: &McpArgs) -> AppResult<()> {
-    let _json_lines = args.json_lines;
+fn run_mcp(cli: &Cli, _args: &McpArgs) -> AppResult<()> {
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         let line = line.map_err(|err| {
@@ -544,61 +549,229 @@ fn run_mcp(cli: &Cli, args: &McpArgs) -> AppResult<()> {
         if line.trim().is_empty() {
             continue;
         }
-        let request: serde_json::Value = serde_json::from_str(&line).map_err(|err| {
-            AppError::with_detail("E_MCP", "failed to parse JSON-RPC request", err.to_string())
-        })?;
-        let Some(id) = request.get("id").cloned() else {
+
+        let request: serde_json::Value = match serde_json::from_str(&line) {
+            Ok(request) => request,
+            Err(_) => {
+                write_mcp_response(&mcp_error(
+                    serde_json::Value::Null,
+                    -32700,
+                    "Parse error",
+                    None,
+                ))?;
+                continue;
+            }
+        };
+
+        let Some(request_object) = request.as_object() else {
+            write_mcp_response(&mcp_error(
+                serde_json::Value::Null,
+                -32600,
+                "Invalid Request",
+                None,
+            ))?;
             continue;
         };
-        let method = request
+        let Some(method) = request_object
             .get("method")
             .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
-        let response = match method {
-            "initialize" => serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "serverInfo": {
-                        "name": "gitquarry",
-                        "version": env!("CARGO_PKG_VERSION")
-                    },
-                    "capabilities": {"tools": {}}
-                }
-            }),
-            "tools/list" => serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": {"tools": mcp_tool_definitions()}
-            }),
-            "tools/call" => match run_mcp_tool_call(cli, &request) {
-                Ok(result) => serde_json::json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "result": result
-                }),
-                Err(error) => serde_json::json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "error": {"code": -32000, "message": error.to_string()}
-                }),
-            },
-            _ => serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "error": {"code": -32601, "message": format!("Method not found: {method}")}
-            }),
+        else {
+            write_mcp_response(&mcp_error(
+                request_object
+                    .get("id")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+                -32600,
+                "Invalid Request",
+                None,
+            ))?;
+            continue;
         };
-        write_line(&serde_json::to_string(&response).map_err(|err| {
-            AppError::with_detail(
-                "E_MCP",
-                "failed to serialize JSON-RPC response",
-                err.to_string(),
-            )
-        })?)?;
+        let Some(id) = request_object.get("id").cloned() else {
+            // Notifications do not receive responses. This also covers
+            // notifications/cancelled without adding state to the server.
+            continue;
+        };
+
+        let response = if !mcp_request_id_is_valid(&id) {
+            mcp_error(id, -32600, "Invalid Request", None)
+        } else {
+            handle_mcp_request(cli, &request, id, method)
+        };
+        write_mcp_response(&response)?;
     }
     Ok(())
+}
+
+fn handle_mcp_request(
+    cli: &Cli,
+    request: &serde_json::Value,
+    id: serde_json::Value,
+    method: &str,
+) -> serde_json::Value {
+    if request.get("jsonrpc").and_then(serde_json::Value::as_str) != Some("2.0") {
+        return mcp_error(id, -32600, "Invalid Request", None);
+    }
+
+    if method == "initialize" {
+        if let Some(version) = request
+            .get("params")
+            .and_then(serde_json::Value::as_object)
+            .and_then(|params| params.get("protocolVersion"))
+            .and_then(serde_json::Value::as_str)
+        {
+            return mcp_unsupported_version_error(id, version);
+        }
+        return mcp_error(id, -32601, "Method not found: initialize", None);
+    }
+    if method == "notifications/initialized" {
+        return mcp_error(
+            id,
+            -32601,
+            "Method not found: notifications/initialized",
+            None,
+        );
+    }
+
+    let version = match mcp_request_version(request) {
+        Ok(version) => version,
+        Err(message) => return mcp_error(id, -32602, message, None),
+    };
+    if version != MCP_PROTOCOL_VERSION {
+        return mcp_unsupported_version_error(id, &version);
+    }
+
+    match method {
+        "server/discover" => mcp_result(id, mcp_discover_result()),
+        "tools/list" => mcp_result(id, mcp_tools_list_result()),
+        "tools/call" => match run_mcp_tool_call(cli, request) {
+            Ok(text) => mcp_result(id, mcp_tool_result(text, false)),
+            Err(McpToolCallError::InvalidParams(message)) => mcp_error(id, -32602, message, None),
+            Err(McpToolCallError::Execution(message)) => {
+                mcp_result(id, mcp_tool_result(message, true))
+            }
+            Err(McpToolCallError::Internal(message)) => mcp_error(id, -32603, message, None),
+        },
+        _ => mcp_error(id, -32601, format!("Method not found: {method}"), None),
+    }
+}
+
+fn write_mcp_response(response: &serde_json::Value) -> AppResult<()> {
+    let serialized = serde_json::to_string(response).map_err(|err| {
+        AppError::with_detail(
+            "E_MCP",
+            "failed to serialize JSON-RPC response",
+            err.to_string(),
+        )
+    })?;
+    write_line(&serialized)
+}
+
+fn mcp_request_version(request: &serde_json::Value) -> Result<String, String> {
+    let params = request
+        .get("params")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            format!(
+                "request params must include _meta with {MCP_PROTOCOL_VERSION_META} and {MCP_CLIENT_CAPABILITIES_META}"
+            )
+        })?;
+    let meta = params
+        .get("_meta")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            format!(
+                "request metadata must include {MCP_PROTOCOL_VERSION_META} and {MCP_CLIENT_CAPABILITIES_META}"
+            )
+        })?;
+    let version = meta
+        .get(MCP_PROTOCOL_VERSION_META)
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| format!("request metadata must include {MCP_PROTOCOL_VERSION_META}"))?;
+    if !meta
+        .get(MCP_CLIENT_CAPABILITIES_META)
+        .is_some_and(serde_json::Value::is_object)
+    {
+        return Err(format!(
+            "request metadata must include {MCP_CLIENT_CAPABILITIES_META} as an object"
+        ));
+    }
+    Ok(version.to_string())
+}
+
+fn mcp_request_id_is_valid(id: &serde_json::Value) -> bool {
+    id.is_string() || id.as_i64().is_some() || id.as_u64().is_some()
+}
+
+fn mcp_result(id: serde_json::Value, result: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({"jsonrpc": "2.0", "id": id, "result": result})
+}
+
+fn mcp_error(
+    id: serde_json::Value,
+    code: i64,
+    message: impl Into<String>,
+    data: Option<serde_json::Value>,
+) -> serde_json::Value {
+    let mut error = serde_json::json!({
+        "code": code,
+        "message": message.into()
+    });
+    if let Some(data) = data {
+        error["data"] = data;
+    }
+    serde_json::json!({"jsonrpc": "2.0", "id": id, "error": error})
+}
+
+fn mcp_unsupported_version_error(id: serde_json::Value, requested: &str) -> serde_json::Value {
+    mcp_error(
+        id,
+        -32022,
+        "Unsupported protocol version",
+        Some(serde_json::json!({
+            "supported": [MCP_PROTOCOL_VERSION],
+            "requested": requested
+        })),
+    )
+}
+
+fn mcp_server_meta() -> serde_json::Value {
+    serde_json::json!({
+        MCP_SERVER_INFO_META: {
+            "name": "gitquarry",
+            "version": env!("CARGO_PKG_VERSION")
+        }
+    })
+}
+
+fn mcp_discover_result() -> serde_json::Value {
+    serde_json::json!({
+        "resultType": "complete",
+        "supportedVersions": [MCP_PROTOCOL_VERSION],
+        "capabilities": {"tools": {}},
+        "ttlMs": MCP_CACHE_TTL_MS,
+        "cacheScope": "public",
+        "_meta": mcp_server_meta()
+    })
+}
+
+fn mcp_tools_list_result() -> serde_json::Value {
+    serde_json::json!({
+        "resultType": "complete",
+        "tools": mcp_tool_definitions(),
+        "ttlMs": MCP_CACHE_TTL_MS,
+        "cacheScope": "public",
+        "_meta": mcp_server_meta()
+    })
+}
+
+fn mcp_tool_result(text: String, is_error: bool) -> serde_json::Value {
+    serde_json::json!({
+        "resultType": "complete",
+        "content": [{"type": "text", "text": text}],
+        "isError": is_error,
+        "_meta": mcp_server_meta()
+    })
 }
 
 fn mcp_tool_definitions() -> serde_json::Value {
@@ -707,25 +880,147 @@ fn mcp_tool_definitions() -> serde_json::Value {
     ])
 }
 
-fn run_mcp_tool_call(cli: &Cli, request: &serde_json::Value) -> AppResult<serde_json::Value> {
+fn validate_mcp_tool_arguments(name: &str, arguments: &serde_json::Value) -> Result<(), String> {
+    // Validate against the schema advertised by tools/list so execution cannot
+    // silently drop malformed values or accept fields clients were not told about.
+    let definitions = mcp_tool_definitions();
+    let tool = definitions
+        .as_array()
+        .and_then(|tools| {
+            tools
+                .iter()
+                .find(|tool| tool.get("name").and_then(serde_json::Value::as_str) == Some(name))
+        })
+        .ok_or_else(|| format!("unknown tool `{name}`"))?;
+    let schema = tool
+        .get("inputSchema")
+        .ok_or_else(|| format!("tool `{name}` has no input schema"))?;
+    let properties = schema
+        .get("properties")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| format!("tool `{name}` has an invalid input schema"))?;
+    let arguments = arguments
+        .as_object()
+        .ok_or_else(|| "tool arguments must be an object".to_string())?;
+
+    if schema.get("additionalProperties") == Some(&serde_json::Value::Bool(false)) {
+        if let Some(unknown) = arguments
+            .keys()
+            .find(|argument| !properties.contains_key(argument.as_str()))
+        {
+            return Err(format!("unknown argument `{unknown}` for tool `{name}`"));
+        }
+    }
+
+    if let Some(required) = schema.get("required").and_then(serde_json::Value::as_array) {
+        for required_name in required.iter().filter_map(serde_json::Value::as_str) {
+            if !arguments.contains_key(required_name) {
+                return Err(format!(
+                    "missing required argument `{required_name}` for tool `{name}`"
+                ));
+            }
+        }
+    }
+
+    for (argument_name, value) in arguments {
+        if let Some(argument_schema) = properties.get(argument_name) {
+            validate_mcp_schema_value(value, argument_schema, argument_name)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_mcp_schema_value(
+    value: &serde_json::Value,
+    schema: &serde_json::Value,
+    path: &str,
+) -> Result<(), String> {
+    let schema_type = schema
+        .get("type")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| format!("tool schema is missing a type for `{path}`"))?;
+    let valid_type = match schema_type {
+        "string" => value.is_string(),
+        "integer" => value.as_i64().is_some() || value.as_u64().is_some(),
+        "boolean" => value.is_boolean(),
+        "array" => value.is_array(),
+        _ => {
+            return Err(format!(
+                "unsupported tool schema type `{schema_type}` for `{path}`"
+            ));
+        }
+    };
+    if !valid_type {
+        return Err(format!("argument `{path}` must be a {schema_type}"));
+    }
+
+    if let Some(enum_values) = schema.get("enum").and_then(serde_json::Value::as_array)
+        && !enum_values.iter().any(|option| option == value)
+    {
+        return Err(format!("argument `{path}` has an unsupported value"));
+    }
+
+    if let Some(minimum) = schema.get("minimum").and_then(serde_json::Value::as_u64) {
+        let below_minimum = if let Some(value) = value.as_i64() {
+            value < 0 || (value as u64) < minimum
+        } else {
+            value.as_u64().is_none_or(|value| value < minimum)
+        };
+        if below_minimum {
+            return Err(format!("argument `{path}` must be at least {minimum}"));
+        }
+    }
+
+    if let Some(array) = value.as_array() {
+        if let Some(min_items) = schema.get("minItems").and_then(serde_json::Value::as_u64)
+            && (array.len() as u64) < min_items
+        {
+            return Err(format!(
+                "argument `{path}` must contain at least {min_items} items"
+            ));
+        }
+        if let Some(item_schema) = schema.get("items") {
+            for (index, item) in array.iter().enumerate() {
+                validate_mcp_schema_value(item, item_schema, &format!("{path}[{index}]"))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+enum McpToolCallError {
+    InvalidParams(String),
+    Execution(String),
+    Internal(String),
+}
+
+fn run_mcp_tool_call(cli: &Cli, request: &serde_json::Value) -> Result<String, McpToolCallError> {
     let params = request
         .get("params")
-        .cloned()
-        .unwrap_or_else(|| serde_json::json!({}));
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| McpToolCallError::InvalidParams("params must be an object".to_string()))?;
     let name = params
         .get("name")
         .and_then(serde_json::Value::as_str)
-        .unwrap_or("");
+        .filter(|name| !name.trim().is_empty())
+        .ok_or_else(|| McpToolCallError::InvalidParams("missing tool name".to_string()))?;
     let arguments = params
         .get("arguments")
         .cloned()
         .unwrap_or_else(|| serde_json::json!({}));
-    let text = match name {
-        "gitquarry_search" => run_gitquarry_tool(cli, mcp_search_args(&arguments)?)?,
-        "gitquarry_inspect" => run_gitquarry_tool(cli, mcp_inspect_args(&arguments)?)?,
-        "gitquarry_tree" => run_gitquarry_tool(cli, mcp_tree_args(&arguments)?)?,
-        "gitquarry_code" => run_gitquarry_tool(cli, mcp_code_args(&arguments)?)?,
-        "gitquarry_compare" => run_gitquarry_tool(cli, mcp_compare_args(&arguments)?)?,
+    if !arguments.is_object() {
+        return Err(McpToolCallError::InvalidParams(
+            "tool arguments must be an object".to_string(),
+        ));
+    }
+    validate_mcp_tool_arguments(name, &arguments).map_err(McpToolCallError::InvalidParams)?;
+
+    match name {
+        "gitquarry_search" => run_mcp_cli_tool(cli, mcp_search_args(&arguments)),
+        "gitquarry_inspect" => run_mcp_cli_tool(cli, mcp_inspect_args(&arguments)),
+        "gitquarry_tree" => run_mcp_cli_tool(cli, mcp_tree_args(&arguments)),
+        "gitquarry_code" => run_mcp_cli_tool(cli, mcp_code_args(&arguments)),
+        "gitquarry_compare" => run_mcp_cli_tool(cli, mcp_compare_args(&arguments)),
         "gitquarry_skill" => {
             let full = arguments
                 .get("full")
@@ -737,15 +1032,18 @@ fn run_mcp_tool_call(cli: &Cli, request: &serde_json::Value) -> AppResult<serde_
                 crate::agent::skill_content(crate::agent::GITQUARRY_SKILL)
             }
             .ok_or_else(|| {
-                AppError::new("E_SKILL_UNKNOWN", "embedded gitquarry skill is unavailable")
-            })?
+                McpToolCallError::Internal("embedded gitquarry skill is unavailable".to_string())
+            })
         }
-        _ => format!("unsupported tool `{name}`"),
-    };
+        _ => Err(McpToolCallError::InvalidParams(format!(
+            "unknown tool `{name}`"
+        ))),
+    }
+}
 
-    Ok(serde_json::json!({
-        "content": [{"type": "text", "text": text}]
-    }))
+fn run_mcp_cli_tool(cli: &Cli, args: AppResult<Vec<String>>) -> Result<String, McpToolCallError> {
+    let args = args.map_err(|error| McpToolCallError::InvalidParams(error.to_string()))?;
+    run_gitquarry_tool(cli, args).map_err(|error| McpToolCallError::Execution(error.to_string()))
 }
 
 fn run_gitquarry_tool(cli: &Cli, mut args: Vec<String>) -> AppResult<String> {
