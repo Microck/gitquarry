@@ -4,7 +4,7 @@ Use this when cutting a new `gitquarry` release.
 
 ## Goal
 
-Ship one version across GitHub release assets, npm, downstream packaging repos, the AUR, public documentation, and crates.io when registry credentials are configured.
+Ship one version across GitHub release assets, npm, downstream packaging repos, the AUR, and public documentation. Publish crates.io when its registry credential is configured.
 
 ## Preflight
 
@@ -12,14 +12,14 @@ Ship one version across GitHub release assets, npm, downstream packaging repos, 
 2. Make sure `main` is green before tagging.
 3. Pick the release version `X.Y.Z`.
 4. Confirm release automation credentials are present:
+   - `NPM_TOKEN` GitHub Actions secret for the required npm publication
    - `CARGO_REGISTRY_TOKEN` GitHub Actions secret for crates.io publishing
    - `GITQUARRY_TOKEN` GitHub Actions secret for live smoke checks
 5. Confirm `CHANGELOG.md` includes the user-facing notes for the release.
 6. Be ready to update downstream packaging repos after the GitHub release completes:
    - `Microck/homebrew-gitquarry`
    - `Microck/scoop-gitquarry`
-7. Confirm npm publish access if you want the release workflow to publish the Node wrapper automatically:
-   - `NPM_TOKEN` GitHub Actions secret
+7. Confirm npm publish access before tagging. The release workflow requires `NPM_TOKEN`, verifies it with `npm whoami`, and fails the release job if npm publication cannot complete.
 8. Confirm AUR SSH access for `aur@aur.archlinux.org` if you plan to publish the Arch package immediately after the release.
 
 ## Update release metadata
@@ -74,7 +74,8 @@ git push origin vX.Y.Z
 - creates a source tarball for packaging workflows
 - generates `SHA256SUMS`
 - creates the GitHub release and uploads the packaged artifacts
-- publishes the npm wrapper when `NPM_TOKEN` is configured
+- verifies `NPM_TOKEN` with `npm whoami`
+- publishes the npm wrapper and fails the release job if publication cannot complete
 
 ## Post-tag checks
 
@@ -85,6 +86,7 @@ Verify all public release surfaces after the workflows finish:
    - confirm the release includes the per-target archives, the source tarball, and `SHA256SUMS`
 2. Release workflow health
    - `gh run list --workflow Release -R Microck/gitquarry --limit 5`
+   - confirm the `Publish npm package` job passed; npm publication is required for a complete release
 3. Downstream packaging repos
    - update `Microck/homebrew-gitquarry/Formula/gitquarry.rb` to the new version and hashes
    - update `Microck/scoop-gitquarry/bucket/gitquarry.json` to the new version and Windows hash
@@ -105,6 +107,7 @@ scoop install gitquarry
 5. npm
    - `npm view gitquarry version dist.tarball`
    - confirm the published version matches `X.Y.Z`
+   - if npm still shows an older version, stop the release follow-up and fix `NPM_TOKEN` or package access before announcing the release
 6. AUR
    - push the updated `PKGBUILD` and `.SRCINFO` to `ssh://aur@aur.archlinux.org/gitquarry.git`
    - verify `https://aur.archlinux.org/packages/gitquarry/` reflects the new version
@@ -174,6 +177,23 @@ cargo publish --locked
 ```
 
 3. Confirm crates.io shows the new version before announcing the release.
+
+### GitHub release exists but npm publish failed
+
+1. Verify the repository `NPM_TOKEN` secret belongs to an npm account that can publish `gitquarry`.
+2. Verify the package version is not already published:
+
+```bash
+npm view gitquarry version dist-tags
+```
+
+3. Publish the matching wrapper from a trusted environment:
+
+```bash
+npm publish ./npm --access public
+```
+
+4. Confirm npm shows the release version before announcing it.
 
 ### crates.io is published but GitHub assets are wrong
 
