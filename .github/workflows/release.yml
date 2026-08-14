@@ -66,6 +66,17 @@ jobs:
         uses: actions/setup-node@v6.0.0
         with:
           node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify npm credentials
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is not configured for the release workflow."
+            exit 1
+          fi
+          npm whoami --registry=https://registry.npmjs.org
 
       - name: Validate npm wrapper package
         run: npm pack --dry-run ./npm
@@ -217,27 +228,8 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
-      - name: Check npm token availability
-        id: token-check
-        run: |
-          if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "has_token=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_token=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Explain skipped npm publish
-        if: steps.token-check.outputs.has_token != 'true'
-        run: echo "NPM_TOKEN is not configured; skipping npm publish."
-
       - name: Publish to npm
-        if: steps.token-check.outputs.has_token == 'true'
-        run: |
-          if npm publish ./npm --access public --provenance; then
-            exit 0
-          fi
-
-          echo "::warning::npm publish failed. GitHub release assets are already published; fix NPM_TOKEN/package permissions and publish the npm wrapper manually if needed."
+        run: npm publish ./npm --access public --provenance
 
   publish-release:
     name: Publish release
