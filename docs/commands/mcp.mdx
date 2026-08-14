@@ -7,6 +7,24 @@ description: "Run gitquarry as a stdio Model Context Protocol server."
 
 Run a stdio JSON-RPC server that exposes gitquarry tools for agents.
 
+The standalone `gitquarry-mcp` wrapper is deprecated. Use this command so the
+MCP server and the CLI stay version-matched.
+
+## Protocol
+
+The server implements MCP `2026-07-28` over stdio:
+
+- messages are newline-delimited JSON-RPC 2.0 values
+- each request includes `_meta.io.modelcontextprotocol/protocolVersion` and
+  `_meta.io.modelcontextprotocol/clientCapabilities`
+- clients can call `server/discover` to learn the supported version and tools
+- the legacy `initialize` and `notifications/initialized` handshake is not
+  supported
+- `tools/list` and successful tool calls return `resultType: "complete"`
+
+Tool execution failures are returned as MCP tool results with `isError: true`.
+Malformed requests and unknown tools use JSON-RPC error responses.
+
 ## Synopsis
 
 ```bash
@@ -55,7 +73,9 @@ Restart Codex after changing MCP entries so the tool list is rediscovered.
 - `gitquarry_compare` - compare explicit repositories side by side. Accepts `repositories`, optional `readme`, and `tree_summary`.
 - `gitquarry_skill` - return the embedded gitquarry operator skill.
 
-The server reads one JSON-RPC request per stdin line and writes one JSON-RPC response per stdout line. This keeps the implementation dependency-light and easy to supervise from agent runners.
+The server reads one JSON-RPC request per stdin line and writes one JSON-RPC
+response per stdout line. This keeps the implementation dependency-light and
+easy to supervise from agent runners.
 
 ## Authentication
 

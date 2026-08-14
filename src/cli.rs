@@ -447,11 +447,7 @@ pub struct RecipeRunArgs {
 }
 
 #[derive(Debug, Args, Clone)]
-pub struct McpArgs {
-    /// Print one JSON-RPC response per line.
-    #[arg(long)]
-    pub json_lines: bool,
-}
+pub struct McpArgs {}
 
 #[derive(Debug, Args, Clone)]
 pub struct SourcePathArgs {

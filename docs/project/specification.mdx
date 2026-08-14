@@ -528,11 +528,17 @@ gitquarry mcp
 ### Behavior
 
 - run a stdio JSON-RPC server for MCP clients
-- support `initialize`, `tools/list`, and `tools/call`
+- implement MCP `2026-07-28`
+- support `server/discover`, `tools/list`, and `tools/call`
+- require per-request protocol version and client capability metadata
+- reject unsupported versions with JSON-RPC error `-32022`
+- do not implement the legacy `initialize` handshake
 - expose search, inspect, tree, code, compare, and skill tools
-- return tool output as MCP text content
+- return `resultType` and server identity metadata on successful results
+- return cache hints on discovery and tool-list results
+- return tool execution failures as results with `isError: true`
 - use the same credential and host resolution as the CLI
-- keep diagnostics and errors out of tool content
+- keep diagnostics out of successful tool content; failure text appears only in `isError` results
 
 ## Source
 
