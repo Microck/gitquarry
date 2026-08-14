@@ -1,30 +1,30 @@
 class Gitquarry < Formula
   desc "Terminal CLI for public GitHub repository search with explicit discovery controls"
   homepage "https://github.com/Microck/gitquarry"
-  version "0.1.10"
+  version "0.2.0"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/Microck/gitquarry/releases/download/v0.1.10/gitquarry-v0.1.10-aarch64-apple-darwin.tar.gz"
-      sha256 "f4cc1b3d54b5c576fc306085ebae89c53c0bdad29a348d9ed38a6af2dafb12d6"
+      url "https://github.com/Microck/gitquarry/releases/download/v0.2.0/gitquarry-v0.2.0-aarch64-apple-darwin.tar.gz"
+      sha256 "dc403e89ee298a4a61de4d7cf2eef1be3f3cde6caf48e4ed917e44150cd6a00b"
     end
 
     if Hardware::CPU.intel?
-      url "https://github.com/Microck/gitquarry/releases/download/v0.1.10/gitquarry-v0.1.10-x86_64-apple-darwin.tar.gz"
-      sha256 "8e26541354be175d6970238113f2d7d796a708190c723bd43e983eaa29baf0cb"
+      url "https://github.com/Microck/gitquarry/releases/download/v0.2.0/gitquarry-v0.2.0-x86_64-apple-darwin.tar.gz"
+      sha256 "5913f6de7cd324c324f0f6ef2f7a84c7d99462167e3d1a5c9fae9faaecc5bcf8"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/Microck/gitquarry/releases/download/v0.1.10/gitquarry-v0.1.10-aarch64-unknown-linux-gnu.tar.gz"
-      sha256 "334b0fa8c6df47d6904ba4dc4887b1f4da456a01323e44f39a78c2016ecdcfdb"
+      url "https://github.com/Microck/gitquarry/releases/download/v0.2.0/gitquarry-v0.2.0-aarch64-unknown-linux-gnu.tar.gz"
+      sha256 "aef1d3aef0dc0858c99c1c69c983f2e53f69c3b684ac4abb78d1bc63d8401678"
     end
 
     if Hardware::CPU.intel?
-      url "https://github.com/Microck/gitquarry/releases/download/v0.1.10/gitquarry-v0.1.10-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "34c4b06ffccab1adfa2270b84a9ba5175e178c162d213715f6a0f911db426403"
+      url "https://github.com/Microck/gitquarry/releases/download/v0.2.0/gitquarry-v0.2.0-x86_64-unknown-linux-gnu.tar.gz"
+      sha256 "9abdadeebe51e06ac958927d5a0547a215c929858276f196a7bdba2e770d55fd"
     end
   end
 
