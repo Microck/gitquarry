@@ -6,6 +6,8 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+## [0.2.0]
+
 - Update `gitquarry mcp` to MCP `2026-07-28` and deprecate the standalone `gitquarry-mcp` wrapper.
 - Remove `gitquarry mcp --json-lines`; the server always writes one JSON-RPC response per line.
 
