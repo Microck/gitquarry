@@ -6,6 +6,8 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+## [0.2.1]
+
 - Avoid computing explanation-only matched surfaces when ranking without `--explain`; scores and ordering are unchanged.
 
 ## [0.2.0]
