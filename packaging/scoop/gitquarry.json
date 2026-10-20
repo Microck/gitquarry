@@ -1,12 +1,12 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Terminal CLI for public GitHub repository search with explicit discovery controls.",
   "homepage": "https://github.com/Microck/gitquarry",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/Microck/gitquarry/releases/download/v0.2.0/gitquarry-v0.2.0-x86_64-pc-windows-msvc.zip",
-      "hash": "453b56bd4131a4ba8eedf4135825a3bc740859ebca289dc8d161b51dbc208933"
+      "url": "https://github.com/Microck/gitquarry/releases/download/v0.2.1/gitquarry-v0.2.1-x86_64-pc-windows-msvc.zip",
+      "hash": "fd33b2ebe9ae1e7df88f95f2db89f4cfce96d49b973eae1f5eca288c8cf594c2"
     }
   },
   "bin": "gitquarry.exe",
