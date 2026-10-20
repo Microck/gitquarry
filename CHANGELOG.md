@@ -6,6 +6,8 @@ The format is intentionally simple and does not depend on a release tool.
 
 ## Unreleased
 
+- Avoid computing explanation-only matched surfaces when ranking without `--explain`; scores and ordering are unchanged.
+
 ## [0.2.0]
 
 - Update `gitquarry mcp` to MCP `2026-07-28` and deprecate the standalone `gitquarry-mcp` wrapper.
