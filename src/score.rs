@@ -44,7 +44,11 @@ pub fn rerank(
                     activity: activity_score,
                     quality: quality_score,
                     blended: blended_score,
-                    matched_surfaces: matched_surfaces(repo, &needles),
+                    matched_surfaces: if explain {
+                        matched_surfaces(repo, &needles)
+                    } else {
+                        Vec::new()
+                    },
                 },
             )
         })
@@ -220,9 +224,15 @@ fn matched_surfaces(repo: &Repository, needles: &[String]) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::rerank;
+    use super::{
+        ComputedScores, compare, matched_surfaces, rerank, score_activity, score_quality,
+        score_query, tokenize,
+    };
+    use crate::model::ExplainScore;
     use crate::model::{LicenseInfo, Owner, RankMode, ReleaseSummary, Repository, ScoreWeights};
+    use chrono::DateTime;
     use chrono::{TimeZone, Utc};
+    use std::collections::HashMap;
 
     fn repo(name: &str, stars: u64, forks: u64, description: &str) -> Repository {
         Repository {
@@ -422,5 +432,168 @@ mod tests {
         );
 
         assert_eq!(repos[0].name, "high-star");
+    }
+    // Frozen pre-optimization orchestration for exact output comparison and
+    // a focused benchmark; individual scoring formulas remain unchanged.
+    fn rerank_baseline(
+        repos: &mut [Repository],
+        rank: RankMode,
+        query: Option<&str>,
+        weights: &ScoreWeights,
+        explain: bool,
+        now: DateTime<Utc>,
+    ) {
+        let needles = tokenize(query.unwrap_or(""));
+
+        let scores_by_repo = repos
+            .iter()
+            .map(|repo| {
+                let query_score = score_query(repo, &needles);
+                let activity_score = score_activity(repo, now);
+                let quality_score = score_quality(repo);
+                let blended_score = if weights.query + weights.activity + weights.quality > 0.0 {
+                    ((weights.query * query_score)
+                        + (weights.activity * activity_score)
+                        + (weights.quality * quality_score))
+                        / (weights.query + weights.activity + weights.quality)
+                } else {
+                    0.0
+                };
+
+                (
+                    repo.full_name.clone(),
+                    ComputedScores {
+                        query: query_score,
+                        activity: activity_score,
+                        quality: quality_score,
+                        blended: blended_score,
+                        matched_surfaces: matched_surfaces(repo, &needles),
+                    },
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
+        repos.sort_by(|left, right| compare(left, right, rank, &scores_by_repo));
+
+        for repo in repos.iter_mut() {
+            if explain {
+                let scores = scores_by_repo
+                    .get(&repo.full_name)
+                    .expect("missing score entry");
+                repo.explain = Some(ExplainScore {
+                    query: Some(scores.query),
+                    activity: Some(scores.activity),
+                    quality: Some(scores.quality),
+                    blended: Some(scores.blended),
+                    weights: Some(weights.clone()),
+                    matched_surfaces: scores.matched_surfaces.clone(),
+                });
+            } else {
+                repo.explain = None;
+            }
+        }
+    }
+
+    fn benchmark_repositories() -> Vec<Repository> {
+        (0..128)
+            .map(|i| {
+                let mut value = repo(
+                    &format!("repo-{i}"),
+                    (i % 7) * 100,
+                    i % 5,
+                    "Rust CLI toolkit",
+                );
+                value.readme =
+                    (i % 3 != 0).then(|| "Rust CLI documentation and examples. ".repeat(512));
+                value.topics = vec!["rust".into(), "cli".into()];
+                value
+            })
+            .collect()
+    }
+
+    #[test]
+    fn explanation_optimization_preserves_all_results_and_order() {
+        let source = benchmark_repositories();
+        let now = Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap();
+        for rank in [
+            RankMode::Native,
+            RankMode::Query,
+            RankMode::Activity,
+            RankMode::Quality,
+            RankMode::Blended,
+        ] {
+            for query in ["", "rust cli", "unknown", "é"] {
+                for weights in [
+                    ScoreWeights {
+                        query: 1.0,
+                        activity: 1.0,
+                        quality: 1.0,
+                    },
+                    ScoreWeights {
+                        query: 1.0,
+                        activity: 0.0,
+                        quality: 0.0,
+                    },
+                    ScoreWeights {
+                        query: 0.0,
+                        activity: 0.0,
+                        quality: 0.0,
+                    },
+                ] {
+                    for explain in [false, true] {
+                        let mut expected = source.clone();
+                        let mut actual = source.clone();
+                        rerank_baseline(&mut expected, rank, Some(query), &weights, explain, now);
+                        rerank(&mut actual, rank, Some(query), &weights, explain, now);
+                        assert_eq!(
+                            serde_json::to_value(actual).unwrap(),
+                            serde_json::to_value(expected).unwrap()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "manual focused benchmark; excludes fixture cloning"]
+    fn benchmark_unexplained_ranking() {
+        let source = benchmark_repositories();
+        let weights = ScoreWeights {
+            query: 1.0,
+            activity: 1.0,
+            quality: 1.0,
+        };
+        let now = Utc.with_ymd_and_hms(2026, 4, 21, 0, 0, 0).unwrap();
+        for pass in 0..5 {
+            let mut baseline_time = std::time::Duration::ZERO;
+            let mut candidate_time = std::time::Duration::ZERO;
+            for _ in 0..10 {
+                let mut baseline = source.clone();
+                let mut candidate = source.clone();
+                let start = std::time::Instant::now();
+                rerank_baseline(
+                    std::hint::black_box(&mut baseline),
+                    RankMode::Blended,
+                    Some("rust cli"),
+                    &weights,
+                    false,
+                    now,
+                );
+                baseline_time += start.elapsed();
+                let start = std::time::Instant::now();
+                rerank(
+                    std::hint::black_box(&mut candidate),
+                    RankMode::Blended,
+                    Some("rust cli"),
+                    &weights,
+                    false,
+                    now,
+                );
+                candidate_time += start.elapsed();
+                std::hint::black_box((baseline, candidate));
+            }
+            eprintln!("pass {pass}: baseline={baseline_time:?} candidate={candidate_time:?}");
+        }
     }
 }
